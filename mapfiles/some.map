@@ -1,0 +1,319 @@
+/*
+/map2img -all_debug 5 -map_debug 5 -l "HELLO" -m "/home/james/Documents/mapserverdev/some.map" -conf "/home/james/Documents/mapserverdev/config.map" > "/home/james/Documents/mapserverdev/a.png"
+
+-all_debug 5 -map_debug 5 -l "HELLO" -m "/home/james/Documents/mapserverdev/some.map" -conf "/home/james/Documents/mapserverdev/config.map" -e -34942 6696203 18862 6726871 -o /home/james/Documents/mapserverdev/output/test.png
+
+
+-all_debug 5 -map_debug 5 -l "HELLO" -m "/home/james/Documents/mapserverdev/some.map" -conf "/home/james/Documents/mapserverdev/config.map" -e -225169 7096744 -141034 7158509 -o /home/james/Documents/mapserverdev/output/leedstest.png
+
+devstoreaccount1
+
+SharedAccessSignature=sv=2023-01-03&ss=btqf&srt=sco&st=2024-05-17T17%3A23%3A56Z&se=2028-12-18T18%3A23%3A00Z&sp=rwdxftlacup&sig=V8PuNBRqtqF8XQ5BsftKpgZnM0FEHYS%2FacBJQ%2BSa170%3D;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;FileEndpoint=http://devstoreaccount1.file.core.windows.net;QueueEndpoint=http://127.0.0.1:10001/devstoreaccount1;TableEndpoint=http://127.0.0.1:10002/devstoreaccount1;
+
+sv=2023-01-03&ss=btqf&srt=sco&st=2024-05-17T17%3A23%3A56Z&se=2028-12-18T18%3A23%3A00Z&sp=rwdxftlacup&sig=V8PuNBRqtqF8XQ5BsftKpgZnM0FEHYS%2FacBJQ%2BSa170%3D
+
+
+AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;DefaultEndpointsProtocol=http;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;QueueEndpoint=http://127.0.0.1:10001/devstoreaccount1;TableEndpoint=http://127.0.0.1:10002/devstoreaccount1;
+
+
+
+DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;
+
+#    CONFIG "AZURE_CONNECTION_STRING" "SharedAccessSignature=sv=2023-01-03&ss=btqf&srt=sco&st=2024-05-17T17%3A23%3A56Z&se=2028-12-18T18%3A23%3A00Z&sp=rwdxftlacup&sig=V8PuNBRqtqF8XQ5BsftKpgZnM0FEHYS%2FacBJQ%2BSa170%3D;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;FileEndpoint=http://devstoreaccount1.file.core.windows.net;QueueEndpoint=http://127.0.0.1:10001/devstoreaccount1;TableEndpoint=http://127.0.0.1:10002/devstoreaccount1;"
+
+    CONFIG "AZURE_STORAGE_ACCOUNT" "devstoreaccount1"
+  #  CONFIG "AZURE_STORAGE_SAS_TOKEN" "sv=2023-01-03&ss=btqf&srt=sco&st=2024-05-17T17%3A23%3A56Z&se=2028-12-18T18%3A23%3A00Z&sp=rwdxftlacup&sig=V8PuNBRqtqF8XQ5BsftKpgZnM0FEHYS%2FacBJQ%2BSa170%3D"
+
+*/
+
+
+
+MAP
+    NAME "BLEND_DEMO"
+    # CONFIG "MS_ERRORFILE" "MS_ERROR.txt"
+    # DEBUG 5
+    PROJECTION 
+      "init=epsg:3857"
+    END
+
+    
+
+
+    WEB
+      METADATA 
+        "wms_title" "hello world"
+        "wms_srs" "EPSG:4326 EPSG:3857"
+        "wms_enable_request" "*"
+        
+      END # METADATA
+    END # WEB
+    EXTENT -180 0 180 90
+    UNITS DD
+    SIZE 800 600
+    CONFIG "AZURE_STORAGE_CONNECTION_STRING" "SharedAccessSignature=sv=2018-03-28&spr=https%2Chttp&st=2024-05-21T16%3A34%3A21Z&se=2024-05-22T16%3A34%3A21Z&sr=c&sp=rl&sig=IotJafAMMNDX37oqxvvDqvC%2B0cD0KRBPJ%2Bkm8xl6pTk%3D;DefaultEndpointsProtocol=http;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1"
+  
+    SYMBOL
+        NAME "circle"
+        TYPE ellipse
+        FILLED true
+        POINTS
+            1 1
+        END
+    END
+
+    OUTPUTFORMAT
+      NAME "png"
+      # DRIVER BLEND/PNG
+      DRIVER AGG/PNG
+      MIMETYPE "image/png"
+      IMAGEMODE RGB
+      EXTENSION "png"
+    #  FORMATOPTION "GAMMA=0.75"
+    END
+
+
+    LAYER 
+      NAME "leeds_buildings"
+      TYPE POLYGON
+      DATA "/home/james/Documents/mapserverdev/leeds_web_merc.shp"
+      PROJECTION 
+        "init=epsg:3857"
+      END
+
+      CLASS 
+        GROUP "low_zoom"
+        STYLE
+          COLOR "#d9d0c9"
+        END
+      END
+
+
+      CLASS 
+        GROUP "high_zoom"
+        STYLE
+          WIDTH 1
+          # OUTLINECOLOR 0 0 0
+          OUTLINECOLOR "#cebeb5"
+          COLOR "#d9d0c9"
+        END
+      END
+    END
+
+
+    LAYER 
+      NAME "leeds_landuse"
+      TYPE POLYGON
+      DATA "/home/james/Documents/mapserverdev/leeds_web_merc.shp"
+      PROJECTION 
+        "init=epsg:3857"
+      END
+
+      CLASS 
+        GROUP "low_zoom"
+        STYLE
+          COLOR "#d9d0c9"
+        END
+      END
+
+
+      CLASS 
+        GROUP "high_zoom"
+        STYLE
+          WIDTH 1
+          # OUTLINECOLOR 0 0 0
+          OUTLINECOLOR "#cebeb5"
+          COLOR "#d9d0c9"
+        END
+      END
+    END
+
+
+    LAYER
+        NAME "HELLO2"
+        TYPE POINT
+        CONNECTIONTYPE OGR
+        CONNECTION "data.gpkg"
+        DATA "data"
+        CLASS
+            STYLE
+              SYMBOL 'circle'
+              COLOR 255 0 0
+              SIZE 10
+              WIDTH 3
+            END
+        END
+    END
+
+    LAYER
+        NAME "lidar"
+        TYPE RASTER
+        DATA "/home/james/Documents/aerodynamik/elevation/LIDAR_Composite_10m_DTM_2022/LIDAR_Composite_10m_DTM_2022.tif"
+        STATUS ON
+        CLASSITEM "[pixel]"
+        PROJECTION
+            auto
+        END 
+        CLASS
+            EXPRESSION ([pixel] >= 0 AND [pixel] < 100)
+            STYLE
+                COLOR 49 18 59
+            END
+        END
+    
+        CLASS
+            EXPRESSION ([pixel] >= 0 AND [pixel] < 100)
+            STYLE
+                COLOR 49 18 59
+            END
+        END
+
+        CLASS
+            EXPRESSION ([pixel] >= 100 AND [pixel] < 300)
+            STYLE
+                COLOR 180 248 54
+            END
+        END
+
+        CLASS
+            EXPRESSION ([pixel] >= 200 AND [pixel] < 500)
+            STYLE
+                COLOR 252 179 54
+            END
+        END
+
+        CLASS
+            EXPRESSION ([pixel] >= 500)
+            STYLE
+                COLOR 122 4 3
+            END
+        END
+
+    END
+
+
+    
+
+    /**
+     * test
+    */
+    LAYER
+        NAME "HELLO"
+        TYPE POLYGON
+#        CONNECTIONTYPE flatgeobuf
+        DATA "data/blendit.shp"
+
+        #DATA "/home/james/Documents/mapserverdev/wgs84.fgb"
+        #DATA "/home/james/Documents/mapserverdev/webmerc.fgb"
+        #DATA "wgs84"
+
+        PROJECTION 
+          "init=epsg:3857"
+        END
+
+        CLASS 
+          NAME "dataset"
+          STYLE
+            OUTLINECOLOR 255 0 0
+            COLOR 0 255 0 
+            WIDTH 3
+            LINECAP ROUND
+          END 
+          # STYLE
+          #   OUTLINECOLOR 0 0 0 
+          #   WIDTH 2 
+          #   COLOR 0 255 0 
+          #   SIZE 1
+          # END
+        END 
+    END
+
+
+    /**
+     * test
+    */
+    LAYER
+      NAME "buildings"
+      TYPE POLYGON
+      CONNECTIONTYPE flatgeobuf
+      DATA "data/leeds_buildings.fgb"
+
+
+      PROJECTION 
+        "init=epsg:3857"
+      END
+
+      CLASS 
+        NAME "dataset"
+        STYLE
+          # OUTLINECOLOR 255 0 0
+          COLOR 0 0 0 
+          # WIDTH 3
+          LINECAP ROUND
+        END 
+        # STYLE
+        #   OUTLINECOLOR 0 0 0 
+        #   WIDTH 2 
+        #   COLOR 0 255 0 
+        #   SIZE 1
+        # END
+      END 
+  END
+
+
+    /**
+     * test
+    */
+    LAYER
+      NAME "CROSSINGLINES"
+      TYPE LINE
+#        CONNECTIONTYPE flatgeobuf
+      DATA "/home/james/Documents/mapserverdev/crossinglines.shp"
+
+      PROJECTION 
+        "init=epsg:3857"
+      END
+
+      CLASS 
+        NAME "dataset"
+        STYLE
+          WIDTH 5
+          COLOR "#a06b00"
+          
+          # LINECAP BUTT
+        END
+        STYLE
+          COLOR "#fcd6a4"
+          WIDTH 3
+          LINECAP ROUND
+        END 
+
+
+
+      END 
+  END
+
+
+
+
+
+      LAYER
+        NAME "HELLO3"
+        PROJECTION 
+          "EPSG:4326"
+        END
+        TYPE POINT
+        CONNECTIONTYPE OGR
+        
+        CONNECTION "/home/james/Documents/mapserverdev/ggg.geojson"
+        DATA "ggg"
+        CLASS
+            STYLE
+              SYMBOL 'circle'
+              COLOR 255 0 0
+              SIZE 10
+              WIDTH 3
+            END
+          END
+      END
+
+END
