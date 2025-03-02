@@ -1,3 +1,4 @@
 /mapfiles/data
 /mapfiles/output
 *.pth
+__pycache__/

@@ -1,5 +1,5 @@
 '''
-
+THIS MUST RUN AS PART OF THE DOCKER CONTAINER, NOT LOCALLY 
 '''
 import csv
 import subprocess
@@ -8,7 +8,7 @@ from osgeo import ogr, gdal
 
 gdal.UseExceptions() 
 
-numberOfImagesToCreate = 1000
+numberOfImagesToCreate = 10000
 imageSizePixels = 1000.0 # keep things really simple for now, assume 1 pixel = 1 metre and perfectly square image.
 minimumNumberOfFeatures = 30
 intersectionThreshold = 0.1 # percentage (max 1) of features in original image that must be in shifted image for the shift pair to be accepted.
@@ -35,7 +35,6 @@ with open('/mapfiles/output/metadata.csv', 'w', newline='') as csvfile:
     spamwriter = csv.writer(csvfile)
     spamwriter.writerow(['starting', 'shifted', 'xPixelShift','yPixelShift'])
     while i < numberOfImagesToCreate:
-
         # choose a percentage of the image to display
         
         percentOfImageToDisplay = random.uniform(0.01,0.2)
@@ -174,6 +173,8 @@ with open('/mapfiles/output/metadata.csv', 'w', newline='') as csvfile:
 
         shifted_run_result.check_returncode()
         spamwriter.writerow([f'{i}_starting.png', f'{i}_shifted.png', xPixelShift, yPixelShift])
+        print(f'PROCESSED IMAGE PAIR {i}')
         i+=1
+        
 
 print('Completed successfully')
