@@ -257,5 +257,9 @@ if __name__ == '__main__':
         print(f"Model Accuracy: {avg_accuracy:.2f}%")
 
     # Run evaluation
+    print('Accuracy of test data is: ')
     evaluate(model, test_loader)
+    print('Accuracy of training data is: ')
+    evaluate(model, train_loader)
+
     torch.save(model.state_dict(), "customcnnmodel.pth")

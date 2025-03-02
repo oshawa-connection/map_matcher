@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import torchvision.transforms as transforms
 from PIL import Image
 
-from myOwnCNN import CustomMapRegressor, CustomMapRegressorMoreLayers, CustomMapRegressorMoreLayers2
+from myOwnCNN import CustomMapRegressorMoreLayers2
 
 # Load trained model
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -20,11 +20,9 @@ transform = transforms.Compose([
 
 # Load example maps
 map1 = Image.open("mapfiles/output/0_shifted.png").convert("RGB")
-map2 = Image.open("mapfiles/output/0_starting.png").convert("RGB")
 
 # Apply transformation
 map1 = transform(map1).unsqueeze(0).to(device)  # Add batch dimension
-map2 = transform(map2).unsqueeze(0).to(device)
 
 # Function to visualize feature maps
 def visualize_feature_maps(model, map_input, layer):
@@ -49,7 +47,7 @@ def visualize_feature_maps(model, map_input, layer):
     plt.show()
 
 # Visualize feature maps from different layers
-visualize_feature_maps(model.conv1, map1, "conv1")  # First conv layer
-visualize_feature_maps(model.conv2, map1, "conv2")  # Second conv layer
-visualize_feature_maps(model.conv3, map1, "conv3")  # Third conv layer
-visualize_feature_maps(model.conv4, map1, "conv4")  # Third conv layer
+visualize_feature_maps(model, map1, "conv1")  # First conv layer
+visualize_feature_maps(model, map1, "conv2")  # Second conv layer
+visualize_feature_maps(model, map1, "conv3")  # Third conv layer
+visualize_feature_maps(model, map1, "conv4")  # Third conv layer
