@@ -23,6 +23,7 @@ totalFeatureCount = layer.GetFeatureCount()
 extentMinX, extentMaxX, extentMinY, extentMaxY = layer.GetExtent()
 
 
+
 def getMaximumFromPercentage(minD, maxD, percent):
     return (maxD - minD) * percent
 
