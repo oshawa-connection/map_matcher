@@ -12,7 +12,10 @@ RUN apt upgrade -y
 
 RUN DEBIAN_FRONTEND=noninteractive apt-get install -y software-properties-common g++ make \
 cmake wget curl apache2-dev \
-build-essential   openssl autoconf gtk-doc-tools libc-ares-dev libc-ares-dev libcurl4
+build-essential   openssl autoconf gtk-doc-tools libc-ares-dev libc-ares-dev libcurl4 python3-pip
+
+
+RUN python3 -m pip install attrs --break-system-packages
 
 # Install mapcache dependencies provided by Ubuntu repositories
 RUN apt-get install -y --fix-missing --no-install-recommends \

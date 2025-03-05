@@ -8,7 +8,7 @@ import subprocess
 import random
 
 from osgeo import ogr, gdal
-from mapfiles.extent import Extent
+from extent import Extent
 
 gdal.UseExceptions() 
 
@@ -57,6 +57,33 @@ def featureSetInExtent(extent: Extent, layer)-> set:
 
     return startingIdSet
 
+
+def runMapserverSubprocess(filename:str, extent: Extent):
+
+    x=extent.toArguments()
+    starting_run_result = subprocess.run([ 
+        '/hello/MapServer/build/map2img', 
+        '-s', 
+        str(imageSizePixels), 
+        str(imageSizePixels), 
+        '-all_debug', 
+        '5', 
+        '-map_debug', 
+        '5', 
+        '-l', 
+        'buildings', 
+        '-m', 
+        '/mapfiles/some.map', 
+        '-conf', 
+        '/mapfiles/config.map', 
+        '-e',
+        *x,
+        '-o',
+        filename ],stdout = subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    
+    starting_run_result.check_returncode()
+
+
 i = 0
 with open('/mapfiles/output/metadata.csv', 'w', newline='') as csvfile:
     spamwriter = csv.writer(csvfile)
@@ -89,6 +116,10 @@ with open('/mapfiles/output/metadata.csv', 'w', newline='') as csvfile:
             print('Found a shift that had too few features in common, skipping')
             continue
 
+        startingFileName = f'/mapfiles/output/{i}_starting.png'
+        runMapserverSubprocess(startingFileName, startingExtent)
+        shiftedFileName = f'/mapfiles/output/{i}_shifted.png'
+        runMapserverSubprocess(shiftedFileName, shiftedExtent)
         i+=1
 
         
