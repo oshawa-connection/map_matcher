@@ -6,6 +6,8 @@ import subprocess
 import random
 from osgeo import ogr, gdal
 
+from mapfiles.extent import Extent
+
 gdal.UseExceptions() 
 
 numberOfImagesToCreate = 10000
@@ -20,8 +22,8 @@ dataSource = driver.Open(the_path, 0)
 layer = dataSource.GetLayer()
 totalFeatureCount = layer.GetFeatureCount()
 
-extentMinX, extentMaxX, extentMinY, extentMaxY = layer.GetExtent()
-
+wholeAreaMinX, wholeAreaMaxX, wholeAreaMinY, wholeAreaMaxY = layer.GetExtent()
+wholeAreaExtent = Extent(wholeAreaMinX, wholeAreaMaxX, wholeAreaMinY, wholeAreaMaxY)
 
 
 def getMaximumFromPercentage(minD, maxD, percent):
@@ -41,13 +43,13 @@ with open('/mapfiles/output/metadata.csv', 'w', newline='') as csvfile:
         percentOfImageToDisplay = random.uniform(0.01,0.2)
         percentShift = random.uniform(0.01,0.5)
         
-        distX = getMaximumFromPercentage(extentMinX, extentMaxX, percentOfImageToDisplay)
+        distX = getMaximumFromPercentage(wholeAreaMinX, wholeAreaMaxX, percentOfImageToDisplay)
         xShift = distX * percentShift
-        distXWithShift = getMaximumFromPercentage(extentMinX, extentMaxX, percentOfImageToDisplay + percentShift)
+        distXWithShift = getMaximumFromPercentage(wholeAreaMinX, wholeAreaMaxX, percentOfImageToDisplay + percentShift)
 
-        distY = getMaximumFromPercentage(extentMinY, extentMaxY, percentOfImageToDisplay)
+        distY = getMaximumFromPercentage(wholeAreaMinY, wholeAreaMaxY, percentOfImageToDisplay)
         yShift = distY * percentShift
-        distYWithShift = getMaximumFromPercentage(extentMinY, extentMaxY, percentOfImageToDisplay + percentShift)
+        distYWithShift = getMaximumFromPercentage(wholeAreaMinY, wholeAreaMaxY, percentOfImageToDisplay + percentShift)
 
         xPixelsPerMetre = imageSizePixels / distX
         yPixelsPerMetre = imageSizePixels / distY
@@ -55,8 +57,8 @@ with open('/mapfiles/output/metadata.csv', 'w', newline='') as csvfile:
         xPixelShift = xPixelsPerMetre * xShift / imageSizePixels
         yPixelShift = yPixelsPerMetre * yShift / imageSizePixels
 
-        startX = random.uniform(extentMinX, extentMaxX - distXWithShift)
-        startY = random.uniform(extentMinY, extentMaxY - distYWithShift)
+        startX = random.uniform(wholeAreaMinX, wholeAreaMaxX - distXWithShift)
+        startY = random.uniform(wholeAreaMinY, wholeAreaMaxY - distYWithShift)
 
         endX = startX + distX
         endY = startY + distY
@@ -70,11 +72,11 @@ with open('/mapfiles/output/metadata.csv', 'w', newline='') as csvfile:
         assert startX < endX
         assert startY < endY
 
-        assert startX > extentMinX
-        assert startY > extentMinY 
+        assert startX > wholeAreaMinX
+        assert startY > wholeAreaMinY 
         
-        assert shiftedEndX < extentMaxX
-        assert shiftedEndY < extentMaxY
+        assert shiftedEndX < wholeAreaMaxX
+        assert shiftedEndY < wholeAreaMaxY
 
         startingExtentPolygon = boundsToWktPolygon(startX, startY, endX, endY)
         
