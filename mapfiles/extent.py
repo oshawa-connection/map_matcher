@@ -27,11 +27,17 @@ class Extent:
         # use to set spatial filter
         self.poly.AddGeometry(ring)
 
+    def __str__(self):
+        return f'{self.extentMinX} {self.extentMinY} {self.extentMaxX} {self.extentMaxY}'
+
     def getDistanceX(self):
-        return self.extentMaxX - self.extentMinX
+        return abs(self.extentMaxX - self.extentMinX)
     
     def getDistanceY(self):
-        return self.extentMaxY - self.extentMinY
+        return abs(self.extentMaxY - self.extentMinY)
+
+    def getArea(self):
+        return self.getDistanceX()
 
     def overlapsOtherExtent(self, other: "Extent") -> bool:
         return self.poly.Intersects(other.poly)
@@ -99,7 +105,14 @@ class Extent:
         '''
         keep this crude for now, always shift top right direction
         '''
-        return Extent(self.extentMaxX, self.extentMaxY,self.extentMaxX + self.getDistanceX(), self.extentMaxY + self.getDistanceY())
+
+        other = Extent(
+            self.extentMaxX + self.getDistanceX() * 0.1, 
+            self.extentMaxX + self.getDistanceX()* 1.1,
+            self.extentMaxY + self.getDistanceY() * 0.1,
+            self.extentMaxY + self.getDistanceY()* 1.1)
+
+        return other
 
     def translatedExtent(self, dx:float, dy:float) -> "Extent":
         return Extent(self.extentMinX + dx, self.extentMaxX+dx, self.extentMinY+dy, self.extentMaxY+dy)

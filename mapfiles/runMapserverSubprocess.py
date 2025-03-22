@@ -1,6 +1,6 @@
 import subprocess
 
-from mapfiles.extent import Extent
+from extent import Extent
 def runMapserverSubprocess(outputFilename:str, extent: Extent,imageSizePixels:int):
 
     x=extent.toArguments()

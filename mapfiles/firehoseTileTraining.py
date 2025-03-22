@@ -2,6 +2,7 @@
 THIS MUST RUN AS PART OF THE DOCKER CONTAINER, NOT LOCALLY 
 '''
 from math import floor
+# import asyncio
 import multiprocessing
 import concurrent.futures
 import csv
@@ -10,11 +11,11 @@ import random
 
 from osgeo import ogr, gdal
 from extent import Extent
-from mapfiles.runMapserverSubprocess import runMapserverSubprocess
+from runMapserverSubprocess import runMapserverSubprocess
 
 gdal.UseExceptions() 
 imageSizePixels = 1000
-numberOfImagesToCreate = 10
+numberOfImagesToCreate = 5000
 minimumNumberOfFeatures = 30
 intersectionThreshold = 0.1 # percentage (max 1) of features in original image that must be in shifted image for the shift pair to be accepted.
 
@@ -54,6 +55,8 @@ i = 0
 with open('/mapfiles/output/metadata.csv', 'w', newline='') as csvfile:
     spamwriter = csv.writer(csvfile)
     spamwriter.writerow(['tileImagePath', 'inputImagePath', 'doTheyMatch'])
+    shouldMatch = True
+
     while i < numberOfImagesToCreate:
         percentOfImageToDisplay = random.uniform(0.1,0.3)
         startingExtent = wholeAreaExtent.createRandomExtentWithinThisExtent(percentOfImageToDisplay)
@@ -63,21 +66,9 @@ with open('/mapfiles/output/metadata.csv', 'w', newline='') as csvfile:
 
         startingExtentIds = getFeatureSetForExtent(startingExtent, layer)
 
-        isMatching = 0
-        if random.uniform(0,1) > 0.5:
-            otherExtent = startingExtent.createRandomDisjointExtent()
-            if not extentHasEnoughFeatures(otherExtent, layer, minimumNumberOfFeatures):
-                continue
-            
-            disjointExtentIds = getFeatureSetForExtent(otherExtent, layer)
+        
+        if shouldMatch is True:
 
-            if not startingExtentIds.isdisjoint(disjointExtentIds):
-                print('Disjoint extent shared some features with starting extent, skipping.')
-                continue
-
-            # then do not match
-            pass
-        else:
             isMatching = 1
             # then match
             otherExtent = startingExtent.createRandomClippingExtent(0.2)
@@ -89,9 +80,28 @@ with open('/mapfiles/output/metadata.csv', 'w', newline='') as csvfile:
             if len(otherExtentIds) < (intersectionThreshold * len(startingExtentIds)):
                 print('Not enough shared features in clipping extent, skipping.')
 
+            print('generating a matching pair')
+            shouldMatch = False
+        else:
+            isMatching = 0
+            otherExtent = startingExtent.createRandomDisjointExtent()
             
-        tileImageName = f'initial_tile_{i}.png'
-        inputFilename = f'input_image_{i}.png'
+            if not extentHasEnoughFeatures(otherExtent, layer, minimumNumberOfFeatures):
+                print('Disjoint extent does not have enough features, skipping')
+                continue
+            
+            disjointExtentIds = getFeatureSetForExtent(otherExtent, layer)
+            
+            if not startingExtentIds.isdisjoint(disjointExtentIds):
+                print('Disjoint extent shared some features with starting extent, skipping.')
+                continue
+            
+            print('generating a non-matching pair')
+            shouldMatch = True
+
+            
+        tileImageName = f'/mapfiles/output/initial_tile_{i}.png'
+        inputFilename = f'/mapfiles/output/input_image_{i}.png'
 
         runMapserverSubprocess(tileImageName, startingExtent, imageSizePixels)
         runMapserverSubprocess(inputFilename, otherExtent, imageSizePixels)
