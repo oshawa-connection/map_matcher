@@ -1,3 +1,4 @@
+from typing import Tuple
 import random
 import attrs
 from attrs import define
@@ -47,6 +48,19 @@ class Extent:
         '''
         return self.poly.Within(other.poly)
 
+    def normaliseRelativeToOther(self, other:"Extent") -> Tuple[float,float,float,float]:
+        def normalize(value, min_val, max_val):
+            """Returns how far value is between min_val and max_val as a percentage (0 to 1)."""
+            return (value - min_val) / (max_val - min_val)
+        
+        minX = normalize(self.extentMinX, other.extentMinX, other.extentMaxX)
+        maxX = normalize(self.extentMaxX, other.extentMinX, other.extentMaxX)
+
+        minY = normalize(self.extentMinY, other.extentMinY, other.extentMaxY)
+        maxY = normalize(self.extentMaxY, other.extentMinY, other.extentMaxY)
+
+        return minX, minY, maxX, maxY
+
     def createRandomExtentWithinThisExtent(self, percentageToCover: float):
 
         def getMaximumFromPercentage(minD, maxD, percent):
@@ -63,6 +77,29 @@ class Extent:
         startY = random.uniform(self.extentMinY, self.extentMaxY - distYWithShift)
 
         return Extent(startX, startX + distXWithShift,startY, startY + distYWithShift)
+
+    def createRandomClippingExtent(self,percentOverlap = 0.2):
+        '''
+        keep this crude for now, always shift top right direction
+        '''
+        minClipX = self.getDistanceX() * percentOverlap + self.extentMinX
+        minClipY = self.getDistanceY() * percentOverlap + self.extentMinY
+
+
+        maxClipX = self.extentMaxX - self.getDistanceX() * percentOverlap
+        maxClipY = self.extentMaxY - self.getDistanceY() * percentOverlap
+
+        
+        startX = random.uniform(minClipX, maxClipX)
+        startY = random.uniform(minClipY, maxClipY)
+
+        return Extent(startX, startX + self.getDistanceX(),startY, startY + self.getDistanceY())
+
+    def createRandomDisjointExtent(self):
+        '''
+        keep this crude for now, always shift top right direction
+        '''
+        return Extent(self.extentMaxX, self.extentMaxY,self.extentMaxX + self.getDistanceX(), self.extentMaxY + self.getDistanceY())
 
     def translatedExtent(self, dx:float, dy:float) -> "Extent":
         return Extent(self.extentMinX + dx, self.extentMaxX+dx, self.extentMinY+dy, self.extentMaxY+dy)

@@ -8,6 +8,13 @@ from PIL import Image
 import pandas as pd
 import os
 
+if not torch.cuda.is_available():
+    raise Exception('NO GPU')
+
+# Check for GPU availability
+device = torch.device("cuda")
+print(f"Using device: {device}")
+
 # Custom Dataset for Large and Small Image Pairs
 class ImageLocalizationDataset(Dataset):
     def __init__(self, csv_path, transform=None):
@@ -19,10 +26,11 @@ class ImageLocalizationDataset(Dataset):
 
     def __getitem__(self, idx):
         row = self.data.iloc[idx]
-        large_image = Image.open(row['largeimagepath']).convert("RGB")
-        small_image = Image.open(row['smallimagepath']).convert("RGB")
-        bbox = torch.tensor([row['small_image_min_x'], row['small_image_min_y'],
-                             row['small_image_max_x'], row['small_image_max_x']])
+        
+        large_image = Image.open(f"mapfiles/output/{row['starting']}").convert("RGB")
+        small_image = Image.open(f"mapfiles/output/{row['shifted']}").convert("RGB")
+        
+        bbox = torch.tensor([row['minX'], row['minY'], row['maxX'], row['maxY']], dtype=torch.float32)
         
         if self.transform:
             large_image = self.transform(large_image)
@@ -61,13 +69,13 @@ class FCNImageLocalization(nn.Module):
 def heatmap_loss(predicted_heatmap, bbox, image_size):
     batch_size, _, h, w = predicted_heatmap.shape
     target_heatmap = torch.zeros((batch_size, 1, h, w), device=predicted_heatmap.device)
-    
+
     for i in range(batch_size):
         x_min, y_min, x_max, y_max = bbox[i]
         x_min, x_max = int(x_min * w / image_size[1]), int(x_max * w / image_size[1])
         y_min, y_max = int(y_min * h / image_size[0]), int(y_max * h / image_size[0])
         target_heatmap[i, 0, y_min:y_max, x_min:x_max] = 1.0  # Mark region with 1
-    
+
     return F.mse_loss(predicted_heatmap, target_heatmap)
 
 # Example Usage
@@ -79,19 +87,27 @@ if __name__ == "__main__":
     ])
     
     # Load dataset
-    dataset = ImageLocalizationDataset("path/to/dataset.csv", transform=transform)
+    dataset = ImageLocalizationDataset("mapfiles/output/metadata.csv", transform=transform)
     dataloader = DataLoader(dataset, batch_size=8, shuffle=True)
     
-    # Initialize model
-    model = FCNImageLocalization()
+    # Initialize model and move it to GPU if available
+    model = FCNImageLocalization().to(device)
     optimizer = optim.Adam(model.parameters(), lr=0.001)
     
     # Training loop
     for epoch in range(10):
         for large_image, small_image, bbox in dataloader:
+            # Move data to GPU
+            large_image = large_image.to(device)
+            small_image = small_image.to(device)
+            bbox = bbox.to(device)
+
             optimizer.zero_grad()
             heatmap = model(large_image)
             loss = heatmap_loss(heatmap, bbox, (512, 512))
             loss.backward()
             optimizer.step()
+
         print(f"Epoch {epoch+1}, Loss: {loss.item()}")
+
+    torch.save(model.state_dict(), "differentscales.pth")
