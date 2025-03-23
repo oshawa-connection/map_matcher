@@ -198,6 +198,7 @@ class MapDataset(Dataset):
 
         return map1, map2, magic_number
 
+
 if __name__ == '__main__':
 
 

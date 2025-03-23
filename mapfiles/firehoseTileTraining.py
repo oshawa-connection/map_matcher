@@ -2,7 +2,7 @@
 THIS MUST RUN AS PART OF THE DOCKER CONTAINER, NOT LOCALLY 
 '''
 from math import floor
-# import asyncio
+import asyncio
 import multiprocessing
 import concurrent.futures
 import csv

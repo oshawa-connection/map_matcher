@@ -56,22 +56,31 @@ class MatchModel(nn.Module):
 
         # Classifier on top of concatenated features
         self.classifier = nn.Sequential(
-            nn.Linear(64 * 4 * 4 * 2, 128),
+            nn.Linear(1024, 128),
             nn.ReLU(),
             nn.Linear(128, 1),
             nn.Sigmoid()  # For binary classification
         )
 
+
+
     def forward(self, img1, img2):
         feat1 = self.cnn(img1)
         feat2 = self.cnn(img2)
-        concat = torch.cat((feat1.view(feat1.size(0), -1),
-                            feat2.view(feat2.size(0), -1)), dim=1)
-        out = self.classifier(concat)
+        diff = torch.abs(feat1 - feat2)
+        out = self.classifier(diff.view(diff.size(0), -1))
         return out.squeeze()
 
+    # def forward(self, img1, img2):
+    #     feat1 = self.cnn(img1)
+    #     feat2 = self.cnn(img2)
+    #     concat = torch.cat((feat1.view(feat1.size(0), -1),
+    #                         feat2.view(feat2.size(0), -1)), dim=1)
+    #     out = self.classifier(concat)
+    #     return out.squeeze()
+
 # --- Training ---
-def train(model, dataloader, device, epochs=10):
+def train(model, dataloader, device, epochs):
     model = model.to(device)
     criterion = nn.BCELoss()
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
@@ -94,18 +103,58 @@ def train(model, dataloader, device, epochs=10):
         epoch_loss = running_loss / len(dataloader.dataset)
         print(f"Epoch {epoch+1}/{epochs} - Loss: {epoch_loss:.4f}")
 
+def evaluate(model, dataloader, device):
+    model.eval()
+    total = 0
+    correct = 0
+    total_loss = 0.0
+    criterion = nn.BCELoss()
+
+    with torch.no_grad():
+        for tile_img, input_img, label in dataloader:
+            tile_img, input_img, label = tile_img.to(device), input_img.to(device), label.to(device)
+
+            outputs = model(tile_img, input_img)
+            loss = criterion(outputs, label)
+            total_loss += loss.item() * tile_img.size(0)
+
+            preds = (outputs >= 0.5).float()
+            correct += (preds == label).sum().item()
+            total += label.size(0)
+
+    avg_loss = total_loss / total
+    accuracy = correct / total
+    return avg_loss, accuracy
+
+
 # --- Main ---
 if __name__ == "__main__":
-    image_dir = "./images"  # folder containing images
-    csv_path = "./train_data.csv"
+    
+    image_dir = "/home/james/Documents/fireHoseSam/mapfiles/output"  # folder containing images
+    csv_path = "/home/james/Documents/fireHoseSam/mapfiles/output/metadata.csv"
 
     transform = transforms.Compose([
-        transforms.Resize((64, 64)),
+        transforms.Resize((256, 256)),
         transforms.ToTensor()
     ])
 
     dataset = ImagePairDataset(csv_path, image_dir, transform)
-    dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
+    
+    train_size = int(0.8 * len(dataset))
+    test_size = len(dataset) - train_size
+    train_dataset, test_dataset = torch.utils.data.random_split(dataset, [train_size, test_size])
 
-    model = MatchModel()
-    train(model, dataloader, device=torch.device("cuda"))
+    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+    test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False)
+
+    if not torch.cuda.is_available():
+        raise Exception('no GPU')
+
+    device = torch.device("cuda")
+    model = MatchModel().to(device)
+
+    
+    train(model, train_loader, device, 10)
+    val_loss, val_acc = evaluate(model, test_loader, device)
+    print(f"Eval Loss: {val_loss:.4f} - Eval Accuracy: {val_acc:.4f}")
+    torch.save(model.state_dict(), "classifier.pth")

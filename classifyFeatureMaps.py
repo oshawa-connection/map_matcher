@@ -29,34 +29,28 @@ map1 = Image.open("/home/james/Documents/fireHoseSam/mapfiles/output/initial_til
 map1 = transform(map1).unsqueeze(0).to(device)  # Add batch dimension
 
 # Function to visualize feature maps
-def visualize_feature_maps(model, map_input, layer):
+def visualize_feature_maps(cnn_model, image_tensor, stop_at_layer_idx):
     with torch.no_grad():
-        x = map_input
-        for name, module in model.named_children():
-            x = module(x)  # Forward pass through each layer
-            if name == layer:  # Stop at the specified layer
+        x = image_tensor
+        for i, layer in enumerate(cnn_model):
+            x = layer(x)
+            if i == stop_at_layer_idx:
                 break
 
-    # Convert feature maps to numpy
     feature_maps = x.squeeze(0).cpu().numpy()
 
     # Plot feature maps
     num_filters = feature_maps.shape[0]
-    fig, axes = plt.subplots(1, min(num_filters, 6), figsize=(15, 5))  # Show 6 feature maps
-    for i in range(min(num_filters, 6)):
-        # axes[i].imshow(feature_maps[i], cmap="viridis")
-        # axes[i].axis("off")
-        # axes[i].set_title(f"Filter {i+1}")
-
-
-        axes.imshow(feature_maps[i], cmap="viridis")
-        axes.axis("off")
-        axes.set_title(f"Filter {i+1}")
-
+    fig, axes = plt.subplots(1, num_filters, figsize=(15, 5))
+    for i in range(num_filters):
+        axes[i].imshow(feature_maps[i], cmap="viridis")
+        axes[i].axis("off")
+        axes[i].set_title(f"Filter {i+1}")
     plt.show()
 
 # Visualize feature maps from different layers
-visualize_feature_maps(model, map1, "conv1")  # First conv layer
-visualize_feature_maps(model, map1, "conv2")  # Second conv layer
-visualize_feature_maps(model, map1, "conv3")  # Third conv layer
+visualize_feature_maps(model.cnn, map1, 0)  # Visualize after first layer
+visualize_feature_maps(model.cnn, map1, 1)  # After second
+visualize_feature_maps(model.cnn, map1, 2)  # etc.
+visualize_feature_maps(model.cnn, map1, 3)  # etc.
 # visualize_feature_maps(model, map1, "conv4")  # Third conv layer
