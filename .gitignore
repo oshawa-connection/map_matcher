@@ -1,4 +1,5 @@
 /mapfiles/data
 /mapfiles/output
+/mapfiles/trainoutput
 *.pth
 __pycache__/

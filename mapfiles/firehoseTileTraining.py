@@ -15,7 +15,7 @@ from runMapserverSubprocess import runMapserverSubprocess
 
 gdal.UseExceptions() 
 imageSizePixels = 1000
-numberOfImagesToCreate = 5000
+numberOfImagesToCreate = 250
 minimumNumberOfFeatures = 30
 intersectionThreshold = 0.1 # percentage (max 1) of features in original image that must be in shifted image for the shift pair to be accepted.
 
