@@ -105,6 +105,7 @@ def train(model, dataloader, device, epochs=300, patience=10):
             epochs_without_improvement = 0
             # Optionally save the best model
             torch.save(model.state_dict(), "best_model.pth")
+            print("Saved best model")
         else:
             epochs_without_improvement += 1
             if epochs_without_improvement >= patience:
@@ -153,8 +154,7 @@ if __name__ == "__main__":
     test_size = len(dataset) - train_size
     train_dataset, test_dataset = torch.utils.data.random_split(dataset, [train_size, test_size])
 
-    # train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
-    print('I borked this part')
+    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
     test_loader = DataLoader(dataset, batch_size=32, shuffle=False)
 
     if not torch.cuda.is_available():
@@ -164,7 +164,7 @@ if __name__ == "__main__":
     model = MatchModel().to(device)
     model.load_state_dict(torch.load("best_model.pth"))  # Adjust file path
     
-    # train(model, train_loader, device)
+    train(model, train_loader, device)
     val_loss, val_acc = evaluate(model, test_loader, device)
     print(f"Eval Loss: {val_loss:.4f} - Eval Accuracy: {val_acc:.4f}")
     # torch.save(model.state_dict(), "classifier.pth")

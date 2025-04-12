@@ -15,7 +15,7 @@ from runMapserverSubprocess import runMapserverSubprocess
 
 gdal.UseExceptions() 
 imageSizePixels = 1000
-numberOfImagesToCreate = 250
+numberOfImagesToCreate = 10
 minimumNumberOfFeatures = 30
 intersectionThreshold = 0.1 # percentage (max 1) of features in original image that must be in shifted image for the shift pair to be accepted.
 
@@ -68,10 +68,10 @@ with open('/mapfiles/output/metadata.csv', 'w', newline='') as csvfile:
 
         
         if shouldMatch is True:
-
             isMatching = 1
             # then match
-            otherExtent = startingExtent.createRandomClippingExtent(0.2)
+            subPercent = random.uniform(0.05, 0.15)
+            otherExtent = startingExtent.createRandomClippingExtent(subPercent)
             if not extentHasEnoughFeatures(otherExtent, layer, minimumNumberOfFeatures):
                 continue
             
@@ -99,9 +99,10 @@ with open('/mapfiles/output/metadata.csv', 'w', newline='') as csvfile:
             print('generating a non-matching pair')
             shouldMatch = True
 
+        
             
-        tileImageName = f'/mapfiles/output/initial_tile_{i}.png'
-        inputFilename = f'/mapfiles/output/input_image_{i}.png'
+        tileImageName = f'/mapfiles/output/{i}_tile.png'
+        inputFilename = f'/mapfiles/output/{i}_input_{'match' if isMatching == 1 else 'disjoint'}.png'
 
         runMapserverSubprocess(tileImageName, startingExtent, imageSizePixels)
         runMapserverSubprocess(inputFilename, otherExtent, imageSizePixels)

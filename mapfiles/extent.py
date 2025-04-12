@@ -84,22 +84,26 @@ class Extent:
 
         return Extent(startX, startX + distXWithShift,startY, startY + distYWithShift)
 
-    def createRandomClippingExtent(self,percentOverlap = 0.2):
+    def createRandomClippingExtent(self, percentShift):
         '''
-        keep this crude for now, always shift top right direction
+        :percentShift 0-1
         '''
-        minClipX = self.getDistanceX() * percentOverlap + self.extentMinX
-        minClipY = self.getDistanceY() * percentOverlap + self.extentMinY
+
+        xShift = self.getDistanceX() * percentShift * random.choice([1,-1])
+        yShift = self.getDistanceY() * percentShift* random.choice([1,-1])
 
 
-        maxClipX = self.extentMaxX - self.getDistanceX() * percentOverlap
-        maxClipY = self.extentMaxY - self.getDistanceY() * percentOverlap
+        # case 1: keep x the same, shift y
+        # case 2: keep y the same, shift x
+        # case 3: shift both
 
-        
-        startX = random.uniform(minClipX, maxClipX)
-        startY = random.uniform(minClipY, maxClipY)
-
-        return Extent(startX, startX + self.getDistanceX(),startY, startY + self.getDistanceY())
+        caseNum = random.choice([1,2,3])
+        if caseNum == 1:
+            return Extent(self.extentMinX, self.extentMaxX, self.extentMinY + yShift, self.extentMaxY + yShift)
+        if caseNum == 2:
+            return Extent(self.extentMinX, self.extentMaxX, self.extentMinY, self.extentMaxY)
+        if caseNum == 3:
+            return Extent(self.extentMinX + xShift, self.extentMaxX+ xShift, self.extentMinY + yShift, self.extentMaxY+ yShift)
 
     def createRandomDisjointExtent(self):
         '''

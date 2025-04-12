@@ -12,7 +12,7 @@ from myOwnCNN import CustomMapRegressorMoreLayers2
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # model = CustomMapRegressorMoreLayers2().to(device)
 model = MatchModel().to(device)
-model.load_state_dict(torch.load("classifier.pth"))  # Adjust file path
+model.load_state_dict(torch.load("best_model.pth"))  # Adjust file path
 # model.load_state_dict(torch.load("customcnnmodel.pth"))  # Adjust file path
 model.eval()  # Set to evaluation mode
 
