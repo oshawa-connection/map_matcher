@@ -3,3 +3,5 @@
 /mapfiles/trainoutput
 *.pth
 __pycache__/
+/mapfiles/gridsearch/
+/mapfiles/toFindOnGrid/

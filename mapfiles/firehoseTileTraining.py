@@ -2,20 +2,15 @@
 THIS MUST RUN AS PART OF THE DOCKER CONTAINER, NOT LOCALLY 
 '''
 from math import floor
-import asyncio
-import multiprocessing
-import concurrent.futures
 import csv
-import subprocess
 import random
-
 from osgeo import ogr, gdal
 from extent import Extent
 from runMapserverSubprocess import runMapserverSubprocess
 
 gdal.UseExceptions() 
 imageSizePixels = 1000
-numberOfImagesToCreate = 10
+numberOfImagesToCreate = 10_000
 minimumNumberOfFeatures = 30
 intersectionThreshold = 0.1 # percentage (max 1) of features in original image that must be in shifted image for the shift pair to be accepted.
 
@@ -23,11 +18,33 @@ the_path = "/mapfiles/data/leeds_buildings.fgb"
 driver = ogr.GetDriverByName("FlatGeoBuf")
 dataSource = driver.Open(the_path, 0)
 
-layer = dataSource.GetLayer()
-totalFeatureCount = layer.GetFeatureCount()
+src_lyr = dataSource.GetLayer()
+totalFeatureCount = src_lyr.GetFeatureCount()
 
-wholeAreaMinX, wholeAreaMaxX, wholeAreaMinY, wholeAreaMaxY = layer.GetExtent()
+wholeAreaMinX, wholeAreaMaxX, wholeAreaMinY, wholeAreaMaxY = src_lyr.GetExtent()
 wholeAreaExtent = Extent(wholeAreaMinX, wholeAreaMaxX, wholeAreaMinY, wholeAreaMaxY)
+
+
+mem_driver = ogr.GetDriverByName("Memory")
+mem_ds = mem_driver.CreateDataSource("in_memory")
+layer = mem_ds.CreateLayer("mem_layer", geom_type=src_lyr.GetGeomType(), srs=src_lyr.GetSpatialRef())
+
+# Copy fields
+src_layer_defn = src_lyr.GetLayerDefn()
+for i in range(src_layer_defn.GetFieldCount()):
+    field_defn = src_layer_defn.GetFieldDefn(i)
+    layer.CreateField(field_defn)
+
+# Copy features
+for feat in src_lyr:
+    new_feat = ogr.Feature(layer.GetLayerDefn())
+    new_feat.SetFrom(feat)
+    layer.CreateFeature(new_feat)
+    new_feat = None  # Clean up
+
+# Reset reading to start using the memory layer
+layer.ResetReading()
+
 
 
 def extentHasEnoughFeatures(extent: Extent, layer, minimumNumberOfFeatures: int) -> bool:
@@ -70,7 +87,7 @@ with open('/mapfiles/output/metadata.csv', 'w', newline='') as csvfile:
         if shouldMatch is True:
             isMatching = 1
             # then match
-            subPercent = random.uniform(0.05, 0.15)
+            subPercent = random.uniform(0.1, 0.2)
             otherExtent = startingExtent.createRandomClippingExtent(subPercent)
             if not extentHasEnoughFeatures(otherExtent, layer, minimumNumberOfFeatures):
                 continue
@@ -79,8 +96,7 @@ with open('/mapfiles/output/metadata.csv', 'w', newline='') as csvfile:
 
             if len(otherExtentIds) < (intersectionThreshold * len(startingExtentIds)):
                 print('Not enough shared features in clipping extent, skipping.')
-
-            print('generating a matching pair')
+            
             shouldMatch = False
         else:
             isMatching = 0
@@ -96,7 +112,6 @@ with open('/mapfiles/output/metadata.csv', 'w', newline='') as csvfile:
                 print('Disjoint extent shared some features with starting extent, skipping.')
                 continue
             
-            print('generating a non-matching pair')
             shouldMatch = True
 
         

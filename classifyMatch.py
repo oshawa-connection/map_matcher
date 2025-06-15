@@ -8,9 +8,6 @@ import pandas as pd
 import os
 from playsound import playsound
 
-if not torch.cuda.is_available():
-    raise Exception('NO GPU')
-
 # --- Dataset Class ---
 class ImagePairDataset(Dataset):
     def __init__(self, csv_file, image_dir, transform=None):
@@ -72,46 +69,6 @@ class MatchModel(nn.Module):
         out = self.classifier(diff.view(diff.size(0), -1))
         return out.squeeze()
 
-# --- Training ---
-def train(model, dataloader, device, epochs=300, patience=10):
-    model = model.to(device)
-    criterion = nn.BCELoss()
-    optimizer = optim.Adam(model.parameters(), lr=1e-3)
-
-    best_loss = float("inf")
-    epochs_without_improvement = 0
-
-    for epoch in range(epochs):
-        model.train()
-        running_loss = 0.0
-
-        for tile_img, input_img, label in dataloader:
-            tile_img, input_img, label = tile_img.to(device), input_img.to(device), label.to(device)
-
-            optimizer.zero_grad()
-            outputs = model(tile_img, input_img)
-            loss = criterion(outputs, label)
-            loss.backward()
-            optimizer.step()
-
-            running_loss += loss.item() * tile_img.size(0)
-
-        epoch_loss = running_loss / len(dataloader.dataset)
-        print(f"Epoch {epoch+1}/{epochs} - Loss: {epoch_loss:.4f}")
-
-        # --- Early stopping based on training loss ---
-        if epoch_loss < best_loss:
-            best_loss = epoch_loss
-            epochs_without_improvement = 0
-            # Optionally save the best model
-            torch.save(model.state_dict(), "best_model.pth")
-            print("Saved best model")
-        else:
-            epochs_without_improvement += 1
-            if epochs_without_improvement >= patience:
-                print(f"Early stopping triggered at epoch {epoch+1}")
-                break
-
 def evaluate(model, dataloader, device):
     model.eval()
     total = 0
@@ -137,6 +94,49 @@ def evaluate(model, dataloader, device):
     return avg_loss, accuracy
 
 
+# --- Training ---
+def train(model, dataloader, val_loader, device, epochs=50, patience=10):
+    model = model.to(device)
+    criterion = nn.BCELoss()
+    optimizer = optim.Adam(model.parameters(), lr=1e-3)
+
+    best_val_loss = float("inf")
+    best_loss = float("inf")
+    epochs_without_improvement = 0
+
+    for epoch in range(epochs):
+        model.train()
+        running_loss = 0.0
+
+        for tile_img, input_img, label in dataloader:
+            tile_img, input_img, label = tile_img.to(device), input_img.to(device), label.to(device)
+
+            optimizer.zero_grad()
+            outputs = model(tile_img, input_img)
+            loss = criterion(outputs, label)
+            loss.backward()
+            optimizer.step()
+
+            running_loss += loss.item() * tile_img.size(0)
+
+        epoch_loss = running_loss / len(dataloader.dataset)
+        
+        print(f"Epoch {epoch+1}/{epochs} - Loss: {epoch_loss:.4f}")
+
+
+        val_loss, val_acc = evaluate(model, val_loader, device)
+        print(f"Validation Loss: {val_loss:.4f} | Accuracy: {val_acc:.4f}")
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            epochs_without_improvement = 0
+            torch.save(model.state_dict(), "best_model.pth")
+            print("Saved best model")
+        else:
+            epochs_without_improvement += 1
+            if epochs_without_improvement >= patience:
+                print(f"Early stopping triggered at epoch {epoch+1}")
+                break
+
 # --- Main ---
 if __name__ == "__main__":
     
@@ -144,7 +144,7 @@ if __name__ == "__main__":
     csv_path = "/home/james/Documents/fireHoseSam/mapfiles/output/metadata.csv"
 
     transform = transforms.Compose([
-        transforms.Resize((256, 256)),
+        # transforms.Resize((256, 256)),
         transforms.ToTensor()
     ])
 
@@ -162,9 +162,9 @@ if __name__ == "__main__":
 
     device = torch.device("cuda")
     model = MatchModel().to(device)
-    model.load_state_dict(torch.load("best_model.pth"))  # Adjust file path
-    
-    train(model, train_loader, device)
+    # model.load_state_dict(torch.load("best_model.pth"))  # Adjust file path
+    print('Starting training')
+    train(model, train_loader,test_loader, device)
     val_loss, val_acc = evaluate(model, test_loader, device)
     print(f"Eval Loss: {val_loss:.4f} - Eval Accuracy: {val_acc:.4f}")
     # torch.save(model.state_dict(), "classifier.pth")
