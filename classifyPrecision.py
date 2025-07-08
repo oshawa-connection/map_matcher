@@ -9,6 +9,7 @@ from torch.utils.data import Dataset, DataLoader
 import pandas as pd
 from PIL import Image
 from torchvision import transforms
+from itertools import product
 
 class ImagePairDataset(Dataset):
     def __init__(self, csv_file, image_dir, transform=None, row_limit=None):
@@ -67,42 +68,74 @@ class MatchModel(nn.Module):
 
 
 class GridSearchParameterSet:
-    def __init__(nLayers: int, dropout: bool, flatten: bool,padding:bool, relu: bool, downSample:bool, leaky: bool):
-        pass
+    def __init__(
+            self, 
+            nLayers: int = 4, 
+            dropout: bool = False, 
+            flatten: bool = False, 
+            downSample:bool = False, 
+            leaky_cnn: bool = False, 
+            leaky_classifier = False, 
+            base_channels = 16,
+            kernel_size =3,
+            padding = 0, 
+            output_height=4, 
+            output_width = 4, 
+            classifier_layers=2,  # Number of classifier layers
+            classifier_hidden=128 # Hidden size for classifier layers
+        ):
+        self.feature_maps = []
+        n_output_channels = -1
+        for layer_index in range(0,nLayers):
+            previous_base_channels = 1
+            if layer_index != 0:
+                previous_base_channels = base_channels
+                base_channels *= 2
+                n_output_channels = base_channels
+
+            self.feature_maps.append(nn.Conv2d(previous_base_channels, base_channels, kernel_size=kernel_size, padding=padding))
+                
+            if leaky_cnn:
+                self.feature_maps.append(nn.LeakyReLU())
+            else:
+                self.feature_maps.append(nn.ReLU())
+
+            if layer_index == nLayers -1:
+                self.feature_maps.append(nn.AdaptiveAvgPool2d((output_height, output_width)))
+
+            elif downSample is not None:
+                self.feature_maps.append(nn.MaxPool2d(downSample))
+
+        self.cnn = nn.Sequential(*self.feature_maps)
+
+        if leaky_classifier:
+            rel = nn.ReLU()
+        else:
+            rel = nn.LeakyReLU()
 
 
+        self.classifier_params = []
+        input_dim = n_output_channels * output_height * output_width
+        for _ in range(classifier_layers - 1):
+            self.classifier_params.append(nn.Linear(input_dim, classifier_hidden))
+            self.classifier_params.append(rel)
+            input_dim = classifier_hidden
+        self.classifier_params.append(nn.Linear(input_dim, 1))  # Final output layer
+        self.classifier = nn.Sequential(*self.classifier_params)
 
+class MatchModelSlots(nn.Module):
+    def __init__(self,  parameterSet: GridSearchParameterSet):
+        super(MatchModelSlots, self).__init__()
+        self.cnn = parameterSet.cnn
 
-# class MatchModelSlots(nn.Module):
-#     def __init__(self,  parameterSet: GridSearchParameterSet):
-#         super(MatchModel, self).__init__()
-    
+        self.classifier = parameterSet.classifier
 
-#         self.cnn = nn.Sequential(
-#             nn.Conv2d(3, 16, kernel_size=3),
-#             nn.ReLU(),
-#             nn.MaxPool2d(2),
-#             nn.Conv2d(16, 32, kernel_size=3),
-#             nn.ReLU(),
-#             nn.MaxPool2d(2),
-#             nn.Conv2d(32, 64, kernel_size=3),
-#             nn.ReLU(),
-#             nn.AdaptiveAvgPool2d((4, 4))
-#         )
-
-#         self.classifier = nn.Sequential(
-#             nn.Linear(1024, 128),
-#             nn.ReLU(),
-#             nn.Linear(128, 1)
-#             # No sigmoid — using BCEWithLogitsLoss
-#         )
-
-#     def forward(self, img1, img2):
-#         feat1 = self.cnn(img1)
-#         feat2 = self.cnn(img2)
-#         diff = torch.abs(feat1 - feat2)
-#         out = self.classifier(diff.view(diff.size(0), -1))
-#         return out  # shape [B, 1]
+    def forward(self, img1, img2):
+        feat1 = self.cnn(img1)
+        feat2 = self.cnn(img2)
+        diff = torch.abs(feat1 - feat2)
+        out = self.classifier(diff.view(diff.size(0), -1))
+        return out  # shape [B, 1]
 
 
 def evaluate(model, dataloader, device):
@@ -184,30 +217,137 @@ def train(model, dataloader, val_loader, device, epochs=50, patience=10):
                 break
 
 
+def trainGrid(model, dataloader, val_loader, device, epochs=100, patience=10) -> float:
+    model = model.to(device)
+
+    pos_weight = torch.tensor([10.0], device=device)  # Heavily penalize false positives
+    criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+    optimizer = optim.Adam(model.parameters(), lr=1e-3)
+
+    best_val_loss = -1.0
+    epochs_without_improvement = 0
+
+    for epoch in range(epochs):
+        model.train()
+        running_loss = 0.0
+
+        for tile_img, input_img, label in dataloader:
+            tile_img = tile_img.to(device)
+            input_img = input_img.to(device)
+            label = label.to(device).unsqueeze(1)  # shape [B, 1]
+
+            optimizer.zero_grad()
+            logits = model(tile_img, input_img)
+            loss = criterion(logits, label)
+            loss.backward()
+            optimizer.step()
+
+            running_loss += loss.item() * tile_img.size(0)
+
+        epoch_loss = running_loss / len(dataloader.dataset)
+        print(f"Epoch {epoch+1}, Training Loss: {epoch_loss:.4f}")
+
+        val_loss, val_accuracy, val_precision = evaluate(model, val_loader, device)
+        print(f"Validation Loss: {val_loss:.4f} | Accuracy: {val_accuracy:.4f} | Precision: {val_precision:.4f}")
+
+        if val_precision > best_val_loss:
+            best_val_loss = val_precision
+            epochs_without_improvement = 0
+        else:
+            epochs_without_improvement += 1
+            if epochs_without_improvement >= patience:
+                print(f"Early stopping triggered at epoch {epoch+1}")
+                return best_val_loss
+            
+    return best_val_loss
+
+transform = transforms.Compose([
+    transforms.Grayscale(num_output_channels=1), # 3 channel PNG is black and white
+    transforms.ToTensor()
+])
+
+
+train_dataset = ImagePairDataset("/home/james/Documents/fireHoseSam/mapfiles/output/metadata.csv", "/home/james/Documents/fireHoseSam/mapfiles/output", transform, 5_000)
+test_dataset = ImagePairDataset("/home/james/Documents/fireHoseSam/mapfiles/validation/metadata.csv", "/home/james/Documents/fireHoseSam/mapfiles/validation", transform, 5_000)
+
+train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
+test_loader = DataLoader(test_dataset, batch_size=64, shuffle=True)
+
+if not torch.cuda.is_available():
+    raise Exception('No GPU available')
+
+device = torch.device("cuda")
+
+
 def basicTraining():
-        # image_dir = "/home/james/Documents/fireHoseSam/mapfiles/output"
-    # csv_path = "/home/james/Documents/fireHoseSam/mapfiles/output/metadata.csv"
 
-    transform = transforms.Compose([
-        transforms.Grayscale(num_output_channels=1), # 3 channel PNG is black and white
-        transforms.ToTensor()
-    ])
-
-    train_dataset = ImagePairDataset("/home/james/Documents/fireHoseSam/mapfiles/output/metadata.csv", "/home/james/Documents/fireHoseSam/mapfiles/output", transform, 10_000)
-    test_dataset = ImagePairDataset("/home/james/Documents/fireHoseSam/mapfiles/validation/metadata.csv", "/home/james/Documents/fireHoseSam/mapfiles/validation", transform, 5_000)
-
-    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=64, shuffle=True)
-
-    if not torch.cuda.is_available():
-        raise Exception('No GPU available')
-
-    device = torch.device("cuda")
     model = MatchModel().to(device)
 
     print('Starting training...')
     train(model, train_loader, test_loader, device, 100, 100)
 
+
+def gridSearch():
+    with open('out.txt', 'w') as f:
+
+        # nLayers: int, 
+        # downSample:bool = False, 
+        # leaky_cnn: bool = False, 
+        # leaky_classifier = False, 
+        # base_channels = 16,
+        # kernel_size =3,
+        # padding = 0, 
+        # output_height=4, 
+        # output_width = 4, 
+        # classifier_layers=2,  # Number of classifier layers
+        # classifier_hidden=128 # Hidden size for classifier layers
+            
+
+        # (self, nLayers: int, dropout: bool = False, flatten: bool = False, downSample:bool = False, leaky: bool = False, base_channels = 16,kernel_size =3,padding = 0):
+        search_space = {
+            'nlayers': [2, 3, 4],
+            'downSample': [None, 2, 3, 4],
+            'leaky_cnn': [True, False],
+            'leaky_classifier': [True, False],
+            'base_channels': [16, 32],
+            'kernel_size': [3,5],
+            'padding': [0,1],
+            'classifier_layers': [2, 3, 4],
+            'classifier_hidden': [64, 128, 256],
+            # 'output_height': [2, 4, 8],
+            # 'output_width': [2, 4, 8],
+        }
+
+        # Get keys and values
+        keys = search_space.keys()
+        values = search_space.values()
+
+        # Create list of all combinations
+        combinations = [dict(zip(keys, v)) for v in product(*values)]
+        # def __init__(self, nLayers: int, dropout: bool = False, flatten: bool = False, downSample:bool = False, leaky: bool = False, base_channels = 16,kernel_size =3,padding = 0):
+        for combo in combinations:
+            parameterSet = GridSearchParameterSet(
+                nLayers = combo['nlayers'], 
+                downSample=combo['downSample'],
+                leaky_cnn=combo['leaky_cnn'],
+                leaky_classifier=combo['leaky_classifier'],
+                base_channels=combo['base_channels'],
+                kernel_size= combo['kernel_size'],
+                padding= combo['padding'],
+                classifier_layers=combo['classifier_layers'],
+                classifier_hidden=combo['classifier_hidden']
+            )
+            
+            print(f"Starting CNN params: {parameterSet.feature_maps}, classifier params: {parameterSet.classifier_params}")
+            model = MatchModelSlots(parameterSet).to(device)
+            
+            best_precision = trainGrid(model, train_loader, test_loader, device, 15, 10)
+            print(f"finished; best precision was: {best_precision}")
+            f.write(f"Original parameter set: {} Built CNN params: {parameterSet.feature_maps}, classifier params: {parameterSet.classifier_params}, Precision: {best_precision}\n")
+            f.flush()
+    
+
 # --- Main ---
 if __name__ == "__main__":
-    basicTraining()
+    # basicTraining()
+    gridSearch()
