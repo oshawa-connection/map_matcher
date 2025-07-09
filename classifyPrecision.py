@@ -71,7 +71,6 @@ class GridSearchParameterSet:
     def __init__(
             self, 
             nLayers: int = 4, 
-            dropout: bool = False, 
             flatten: bool = False, 
             downSample:bool = False, 
             leaky_cnn: bool = False, 
@@ -82,7 +81,9 @@ class GridSearchParameterSet:
             output_height=4, 
             output_width = 4, 
             classifier_layers=2,  # Number of classifier layers
-            classifier_hidden=128 # Hidden size for classifier layers
+            classifier_hidden=128, # Hidden size for classifier layers,
+            dropout=0.0
+
         ):
         self.feature_maps = []
         n_output_channels = -1
@@ -217,12 +218,12 @@ def train(model, dataloader, val_loader, device, epochs=50, patience=10):
                 break
 
 
-def trainGrid(model, dataloader, val_loader, device, epochs=100, patience=10) -> float:
+def trainGrid(learning_rate, model, dataloader, val_loader, device, epochs=100, patience=10, patience_delta = 0.001) -> float:
     model = model.to(device)
 
     pos_weight = torch.tensor([10.0], device=device)  # Heavily penalize false positives
     criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
-    optimizer = optim.Adam(model.parameters(), lr=1e-3)
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
     best_val_loss = -1.0
     epochs_without_improvement = 0
@@ -290,32 +291,23 @@ def basicTraining():
 def gridSearch():
     with open('out.txt', 'w') as f:
 
-        # nLayers: int, 
-        # downSample:bool = False, 
-        # leaky_cnn: bool = False, 
-        # leaky_classifier = False, 
-        # base_channels = 16,
-        # kernel_size =3,
-        # padding = 0, 
-        # output_height=4, 
-        # output_width = 4, 
-        # classifier_layers=2,  # Number of classifier layers
-        # classifier_hidden=128 # Hidden size for classifier layers
+
             
 
         # (self, nLayers: int, dropout: bool = False, flatten: bool = False, downSample:bool = False, leaky: bool = False, base_channels = 16,kernel_size =3,padding = 0):
         search_space = {
-            'nlayers': [2, 3, 4],
-            'downSample': [None, 2, 3, 4],
+            'nlayers': [3, 4],
+            'downSample': [2], #[None, 2]
             'leaky_cnn': [True, False],
             'leaky_classifier': [True, False],
             'base_channels': [16, 32],
-            'kernel_size': [3,5],
-            'padding': [0,1],
-            'classifier_layers': [2, 3, 4],
-            'classifier_hidden': [64, 128, 256],
-            # 'output_height': [2, 4, 8],
-            # 'output_width': [2, 4, 8],
+            # 'kernel_size': [3,5],
+            'padding': [0],
+            'classifier_layers': [2, 3],
+            'classifier_hidden': [64, 128],
+            # NEW
+            # 'dropout': [0.0, 0.2],
+            # 'learning_rate': [1e-4, 1e-3],
         }
 
         # Get keys and values
