@@ -1,6 +1,7 @@
 '''
 Before moving to grid search.
 '''
+from pynput import keyboard
 import os
 import torch
 import torch.nn as nn
@@ -68,6 +69,40 @@ class MatchModel(nn.Module):
 
 
 class GridSearchParameterSet:
+
+    def compare(self, other: 'GridSearchParameterSet') -> bool:
+        return (
+            self.nLayers == other.nLayers and
+            self.flatten == other.flatten and
+            self.downSample == other.downSample and
+            self.leaky_cnn == other.leaky_cnn and
+            self.leaky_classifier == other.leaky_classifier and
+            self.base_channels == other.base_channels and
+            self.kernel_size == other.kernel_size and
+            self.padding == other.padding and
+            self.output_height == other.output_height and
+            self.output_width == other.output_width and
+            self.classifier_layers == other.classifier_layers and
+            self.classifier_hidden == other.classifier_hidden and
+            self.dropout == other.dropout
+        )
+
+    @staticmethod
+    def fromDict(d):
+        return GridSearchParameterSet(
+            nLayers=d.get('nlayers', 4),
+            flatten=d.get('flatten', False),
+            downSample=d.get('downSample', False),
+            leaky_cnn=d.get('leaky_cnn', False),
+            leaky_classifier=d.get('leaky_classifier', False),
+            base_channels=d.get('base_channels', 16),
+            kernel_size=d.get('kernel_size', 3),
+            padding=d.get('padding', 0),
+            classifier_layers=d.get('classifier_layers', 2),
+            classifier_hidden=d.get('classifier_hidden', 128),
+            dropout=d.get('dropout', 0.0)
+        )
+
     def __init__(
             self, 
             nLayers: int = 4, 
@@ -218,7 +253,7 @@ def train(model, dataloader, val_loader, device, epochs=50, patience=10):
                 break
 
 
-def trainGrid(learning_rate, model, dataloader, val_loader, device, epochs=100, patience=10, patience_delta = 0.001) -> float:
+def trainGrid(learning_rate, model, dataloader, val_loader, device, epochs=100, patience=10, patience_delta = 0.0001) -> float:
     model = model.to(device)
 
     pos_weight = torch.tensor([10.0], device=device)  # Heavily penalize false positives
@@ -252,8 +287,12 @@ def trainGrid(learning_rate, model, dataloader, val_loader, device, epochs=100, 
         print(f"Validation Loss: {val_loss:.4f} | Accuracy: {val_accuracy:.4f} | Precision: {val_precision:.4f}")
 
         if val_precision > best_val_loss:
+            if (val_precision - best_val_loss) > patience_delta:            
+                epochs_without_improvement = 0
+            else:
+                epochs_without_improvement += 1
             best_val_loss = val_precision
-            epochs_without_improvement = 0
+
         else:
             epochs_without_improvement += 1
             if epochs_without_improvement >= patience:
@@ -269,7 +308,7 @@ transform = transforms.Compose([
 
 
 train_dataset = ImagePairDataset("/home/james/Documents/fireHoseSam/mapfiles/output/metadata.csv", "/home/james/Documents/fireHoseSam/mapfiles/output", transform, 5_000)
-test_dataset = ImagePairDataset("/home/james/Documents/fireHoseSam/mapfiles/validation/metadata.csv", "/home/james/Documents/fireHoseSam/mapfiles/validation", transform, 5_000)
+test_dataset = ImagePairDataset("/home/james/Documents/fireHoseSam/mapfiles/validation/metadata.csv", "/home/james/Documents/fireHoseSam/mapfiles/validation", transform, 2_500)
 
 train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
 test_loader = DataLoader(test_dataset, batch_size=64, shuffle=True)
@@ -287,15 +326,28 @@ def basicTraining():
     print('Starting training...')
     train(model, train_loader, test_loader, device, 100, 100)
 
+stop_switch = False
+
+def on_press(key):
+    global stop_switch
+    try:
+        if key.char == 'q':
+            stop_switch = True
+            print('----------------- q key pressed, ending after this iteration has finished ----------------- ')
+            # Returning False would stop the listener, but we want to finish the iteration
+    except AttributeError:
+        pass  # Special keys (ctrl, etc.) are ignored
+
 
 def gridSearch():
-    with open('out.txt', 'w') as f:
 
+    with open('gridSearch.dicts','r') as existing_dict_file:
+        num_lines = sum(1 for _ in existing_dict_file)
 
-            
-
+    print(f'skipping {num_lines} combinations')
+    with open('out.txt', 'a') as f, open('gridSearch.dicts','a') as dict_file, keyboard.Listener(on_press=on_press) as listener:
         # (self, nLayers: int, dropout: bool = False, flatten: bool = False, downSample:bool = False, leaky: bool = False, base_channels = 16,kernel_size =3,padding = 0):
-        search_space = {
+        search_space2 = {
             'nlayers': [3, 4],
             'downSample': [2], #[None, 2]
             'leaky_cnn': [True, False],
@@ -310,6 +362,19 @@ def gridSearch():
             # 'learning_rate': [1e-4, 1e-3],
         }
 
+
+        search_space = {
+            'nlayers': [5],
+            'downSample': [2], # Exploring this one
+            'leaky_cnn': [True],
+            'leaky_classifier': [False],
+            'base_channels': [16, 32,64], # and this one
+            # 'kernel_size': [3,5],
+            'padding': [0],
+            'classifier_layers': [2,4],
+            'classifier_hidden': [64,128], # and this one
+        }
+
         # Get keys and values
         keys = search_space.keys()
         values = search_space.values()
@@ -317,27 +382,49 @@ def gridSearch():
         # Create list of all combinations
         combinations = [dict(zip(keys, v)) for v in product(*values)]
         # def __init__(self, nLayers: int, dropout: bool = False, flatten: bool = False, downSample:bool = False, leaky: bool = False, base_channels = 16,kernel_size =3,padding = 0):
-        for combo in combinations:
+        
+        for i in range(num_lines ,len(combinations)):
+            if stop_switch:
+                print('Goodbye')
+                break
+            combo = combinations[i]
             parameterSet = GridSearchParameterSet(
                 nLayers = combo['nlayers'], 
                 downSample=combo['downSample'],
                 leaky_cnn=combo['leaky_cnn'],
                 leaky_classifier=combo['leaky_classifier'],
                 base_channels=combo['base_channels'],
-                kernel_size= combo['kernel_size'],
+                # kernel_size= combo['kernel_size'],
                 padding= combo['padding'],
                 classifier_layers=combo['classifier_layers'],
                 classifier_hidden=combo['classifier_hidden']
             )
             
             print(f"Starting CNN params: {parameterSet.feature_maps}, classifier params: {parameterSet.classifier_params}")
+            print(combo)
+            print('\n')
             model = MatchModelSlots(parameterSet).to(device)
+            try:
+                best_precision = trainGrid(1e-3,model, train_loader, test_loader, device, 20, 10)
+                print(f"finished; best precision was: {best_precision}")
+                f.write(f"{combo},{best_precision}\n")
+                dict_file.write(f"{combo}\n")
+                dict_file.flush()
+                f.flush()
+            except Exception as e:
+                print(e)
+                print(f"FAILED")
+                f.write(f"{combo},FAILED\n")
+                dict_file.write(f"{combo}\n")
+                dict_file.flush()
+                f.flush()
             
-            best_precision = trainGrid(model, train_loader, test_loader, device, 15, 10)
-            print(f"finished; best precision was: {best_precision}")
-            f.write(f"Original parameter set: {} Built CNN params: {parameterSet.feature_maps}, classifier params: {parameterSet.classifier_params}, Precision: {best_precision}\n")
-            f.flush()
-    
+def big_refine():
+    model = MatchModel().to(device)
+
+    print('Starting training...')
+    train(model, train_loader, test_loader, device, 100, 100)
+
 
 # --- Main ---
 if __name__ == "__main__":

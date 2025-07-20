@@ -7,3 +7,8 @@ __pycache__/
 /mapfiles/toFindOnGrid/
 /mapfiles/validation/
 /mapfiles/output_100000/
+*.dicts
+out.txt
+.gitignore
+out.csv
+out_initial.txt
