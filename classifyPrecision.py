@@ -1,6 +1,7 @@
 '''
 Before moving to grid search.
 '''
+import torch.optim.lr_scheduler
 from pynput import keyboard
 import os
 import torch
@@ -253,12 +254,21 @@ def train(model, dataloader, val_loader, device, epochs=50, patience=10):
                 break
 
 
+
+
+# ...existing code...
+
 def trainGrid(learning_rate, model, dataloader, val_loader, device, epochs=100, patience=10, patience_delta = 0.0001) -> float:
     model = model.to(device)
 
     pos_weight = torch.tensor([10.0], device=device)  # Heavily penalize false positives
     criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+
+    # Add a scheduler that reduces LR when validation precision plateaus
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, mode='max', factor=0.5, patience=3, verbose=True, min_lr=1e-6
+    )
 
     best_val_loss = -1.0
     epochs_without_improvement = 0
@@ -286,6 +296,9 @@ def trainGrid(learning_rate, model, dataloader, val_loader, device, epochs=100, 
         val_loss, val_accuracy, val_precision = evaluate(model, val_loader, device)
         print(f"Validation Loss: {val_loss:.4f} | Accuracy: {val_accuracy:.4f} | Precision: {val_precision:.4f}")
 
+        # Step the scheduler with the validation precision
+        scheduler.step(val_precision)
+
         if val_precision > best_val_loss:
             if (val_precision - best_val_loss) > patience_delta:            
                 epochs_without_improvement = 0
@@ -307,11 +320,19 @@ transform = transforms.Compose([
 ])
 
 
-train_dataset = ImagePairDataset("/home/james/Documents/fireHoseSam/mapfiles/output/metadata.csv", "/home/james/Documents/fireHoseSam/mapfiles/output", transform, 5_000)
-test_dataset = ImagePairDataset("/home/james/Documents/fireHoseSam/mapfiles/validation/metadata.csv", "/home/james/Documents/fireHoseSam/mapfiles/validation", transform, 2_500)
+train_dataset_small = ImagePairDataset("/home/james/Documents/fireHoseSam/mapfiles/output/metadata.csv", "/home/james/Documents/fireHoseSam/mapfiles/output", transform, 5_000)
+test_dataset_small = ImagePairDataset("/home/james/Documents/fireHoseSam/mapfiles/validation/metadata.csv", "/home/james/Documents/fireHoseSam/mapfiles/validation", transform, 2_500)
 
-train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
-test_loader = DataLoader(test_dataset, batch_size=64, shuffle=True)
+train_loader_small = DataLoader(train_dataset_small, batch_size=64, shuffle=True)
+test_loader_small = DataLoader(test_dataset_small, batch_size=64, shuffle=True)
+
+
+train_dataset_big = ImagePairDataset("/home/james/Documents/fireHoseSam/mapfiles/output/metadata.csv", "/home/james/Documents/fireHoseSam/mapfiles/output", transform)
+test_dataset_big = ImagePairDataset("/home/james/Documents/fireHoseSam/mapfiles/validation/metadata.csv", "/home/james/Documents/fireHoseSam/mapfiles/validation", transform, 5_000)
+
+train_loader_big = DataLoader(train_dataset_big, batch_size=64, shuffle=True)
+test_loader_big = DataLoader(test_dataset_big, batch_size=64, shuffle=True)
+
 
 if not torch.cuda.is_available():
     raise Exception('No GPU available')
@@ -324,7 +345,7 @@ def basicTraining():
     model = MatchModel().to(device)
 
     print('Starting training...')
-    train(model, train_loader, test_loader, device, 100, 100)
+    train(model, train_loader_small, test_loader_small, device, 100, 100)
 
 stop_switch = False
 
@@ -364,15 +385,16 @@ def gridSearch():
 
 
         search_space = {
-            'nlayers': [5],
-            'downSample': [2], # Exploring this one
+            'nlayers': [5], # change this to 6 later
+            'downSample': [2],
             'leaky_cnn': [True],
             'leaky_classifier': [False],
-            'base_channels': [16, 32,64], # and this one
+            'base_channels': [32], 
             # 'kernel_size': [3,5],
             'padding': [0],
-            'classifier_layers': [2,4],
-            'classifier_hidden': [64,128], # and this one
+            'classifier_layers': [4],
+            'classifier_hidden': [128],
+            'learning_rate': [1e-2,1e-3,1e-4,1e-5]
         }
 
         # Get keys and values
@@ -405,7 +427,7 @@ def gridSearch():
             print('\n')
             model = MatchModelSlots(parameterSet).to(device)
             try:
-                best_precision = trainGrid(1e-3,model, train_loader, test_loader, device, 20, 10)
+                best_precision = trainGrid(combo['learning_rate'],model, train_loader_small, test_loader_small, device, 20, 10)
                 print(f"finished; best precision was: {best_precision}")
                 f.write(f"{combo},{best_precision}\n")
                 dict_file.write(f"{combo}\n")
@@ -418,15 +440,110 @@ def gridSearch():
                 dict_file.write(f"{combo}\n")
                 dict_file.flush()
                 f.flush()
-            
-def big_refine():
-    model = MatchModel().to(device)
 
+def train_with_early_quit(learning_rate, model, dataloader, val_loader, device, epochs=100, patience=10, patience_delta=0.0001) -> float:
+    pos_weight = torch.tensor([10.0], device=device)
+    criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, mode='max', factor=0.5, patience=15, verbose=True, min_lr=1e-6
+    )
+
+    best_val_loss = -1.0
+    epochs_without_improvement = 0
+
+    with keyboard.Listener(on_press=on_press) as _:
+        for epoch in range(epochs):
+            model.train()
+            running_loss = 0.0
+
+            for tile_img, input_img, label in dataloader:
+                tile_img = tile_img.to(device)
+                input_img = input_img.to(device)
+                label = label.to(device).unsqueeze(1)
+
+                optimizer.zero_grad()
+                logits = model(tile_img, input_img)
+                loss = criterion(logits, label)
+                loss.backward()
+                optimizer.step()
+
+                running_loss += loss.item() * tile_img.size(0)
+
+            epoch_loss = running_loss / len(dataloader.dataset)
+            print(f"Epoch {epoch+1}, Training Loss: {epoch_loss:.4f}")
+
+            val_loss, val_accuracy, val_precision = evaluate(model, val_loader, device)
+            print(f"Validation Loss: {val_loss:.4f} | Accuracy: {val_accuracy:.4f} | Precision: {val_precision:.4f}")
+
+            scheduler.step(val_precision)
+
+            should_save = epoch > 10
+
+            if val_precision > best_val_loss:
+                if (val_precision - best_val_loss) > patience_delta:
+                    epochs_without_improvement = 0
+                    if (should_save):
+                        print('saving best model')
+                        torch.save(model.state_dict(), "best_precision_model.pth")
+                else:
+                    epochs_without_improvement += 1
+                best_val_loss = val_precision
+            else:
+                epochs_without_improvement += 1
+                if epochs_without_improvement >= patience:
+                    print(f"Early stopping triggered at epoch {epoch+1}")
+                    break
+
+            if stop_switch:
+                # Save model and quit after finishing this epoch
+                save_path = f"early_finish_epoch_{epoch+1}.pth"
+                torch.save(model.state_dict(), save_path)
+                print(f"Early quit requested. Model saved to {save_path}")
+                break
+
+    return best_val_loss
+   
+def big_refine():
+
+    combo = {
+        'nlayers': 6,
+        'downSample': 2,
+        'leaky_cnn': True,
+        'leaky_classifier': False,
+        'base_channels': 32, 
+        # 'kernel_size': [3,5],
+        'padding': 0,
+        'classifier_layers': 4,
+        'classifier_hidden': 128,
+        'learning_rate': 1e-3
+    }
+
+    parameterSet = GridSearchParameterSet(
+        nLayers = combo['nlayers'], 
+        downSample=combo['downSample'],
+        leaky_cnn=combo['leaky_cnn'],
+        leaky_classifier=combo['leaky_classifier'],
+        base_channels=combo['base_channels'],
+        # kernel_size= combo['kernel_size'],
+        padding= combo['padding'],
+        classifier_layers=combo['classifier_layers'],
+        classifier_hidden=combo['classifier_hidden']
+    )
+
+    model = MatchModelSlots(parameterSet).to(device)
+    checkpoint_path = "early_finish_epoch_26.pth"
+    if os.path.exists(checkpoint_path):
+        print(f"Loading checkpoint from {checkpoint_path}")
+        model.load_state_dict(torch.load(checkpoint_path))
+
+   
     print('Starting training...')
-    train(model, train_loader, test_loader, device, 100, 100)
+    train_with_early_quit(combo['learning_rate'], model, train_loader_big, test_loader_big, device, 300, 15)
 
 
 # --- Main ---
 if __name__ == "__main__":
     # basicTraining()
-    gridSearch()
+    # gridSearch()
+    big_refine()
