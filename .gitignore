@@ -4,6 +4,7 @@
 *.pth
 __pycache__/
 /mapfiles/gridsearch/
+/mapfiles/subgrid
 /mapfiles/toFindOnGrid/
 /mapfiles/validation/
 /mapfiles/output_100000/
