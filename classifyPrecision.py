@@ -13,6 +13,10 @@ from PIL import Image
 from torchvision import transforms
 from itertools import product
 
+from GridSearchParameterSet import GridSearchParameterSet
+from MatchModelSlots import MatchModelSlots
+
+
 class ImagePairDataset(Dataset):
     def __init__(self, csv_file, image_dir, transform=None, row_limit=None):
         self.data = pd.read_csv(csv_file)
@@ -60,112 +64,6 @@ class MatchModel(nn.Module):
             nn.Linear(128, 1)
             # No sigmoid — using BCEWithLogitsLoss
         )
-
-    def forward(self, img1, img2):
-        feat1 = self.cnn(img1)
-        feat2 = self.cnn(img2)
-        diff = torch.abs(feat1 - feat2)
-        out = self.classifier(diff.view(diff.size(0), -1))
-        return out  # shape [B, 1]
-
-
-class GridSearchParameterSet:
-
-    def compare(self, other: 'GridSearchParameterSet') -> bool:
-        return (
-            self.nLayers == other.nLayers and
-            self.flatten == other.flatten and
-            self.downSample == other.downSample and
-            self.leaky_cnn == other.leaky_cnn and
-            self.leaky_classifier == other.leaky_classifier and
-            self.base_channels == other.base_channels and
-            self.kernel_size == other.kernel_size and
-            self.padding == other.padding and
-            self.output_height == other.output_height and
-            self.output_width == other.output_width and
-            self.classifier_layers == other.classifier_layers and
-            self.classifier_hidden == other.classifier_hidden and
-            self.dropout == other.dropout
-        )
-
-    @staticmethod
-    def fromDict(d):
-        return GridSearchParameterSet(
-            nLayers=d.get('nlayers', 4),
-            flatten=d.get('flatten', False),
-            downSample=d.get('downSample', False),
-            leaky_cnn=d.get('leaky_cnn', False),
-            leaky_classifier=d.get('leaky_classifier', False),
-            base_channels=d.get('base_channels', 16),
-            kernel_size=d.get('kernel_size', 3),
-            padding=d.get('padding', 0),
-            classifier_layers=d.get('classifier_layers', 2),
-            classifier_hidden=d.get('classifier_hidden', 128),
-            dropout=d.get('dropout', 0.0)
-        )
-
-    def __init__(
-            self, 
-            nLayers: int = 4, 
-            flatten: bool = False, 
-            downSample:bool = False, 
-            leaky_cnn: bool = False, 
-            leaky_classifier = False, 
-            base_channels = 16,
-            kernel_size =3,
-            padding = 0, 
-            output_height=4, 
-            output_width = 4, 
-            classifier_layers=2,  # Number of classifier layers
-            classifier_hidden=128, # Hidden size for classifier layers,
-            dropout=0.0
-
-        ):
-        self.feature_maps = []
-        n_output_channels = -1
-        for layer_index in range(0,nLayers):
-            previous_base_channels = 1
-            if layer_index != 0:
-                previous_base_channels = base_channels
-                base_channels *= 2
-                n_output_channels = base_channels
-
-            self.feature_maps.append(nn.Conv2d(previous_base_channels, base_channels, kernel_size=kernel_size, padding=padding))
-                
-            if leaky_cnn:
-                self.feature_maps.append(nn.LeakyReLU())
-            else:
-                self.feature_maps.append(nn.ReLU())
-
-            if layer_index == nLayers -1:
-                self.feature_maps.append(nn.AdaptiveAvgPool2d((output_height, output_width)))
-
-            elif downSample is not None:
-                self.feature_maps.append(nn.MaxPool2d(downSample))
-
-        self.cnn = nn.Sequential(*self.feature_maps)
-
-        if leaky_classifier:
-            rel = nn.ReLU()
-        else:
-            rel = nn.LeakyReLU()
-
-
-        self.classifier_params = []
-        input_dim = n_output_channels * output_height * output_width
-        for _ in range(classifier_layers - 1):
-            self.classifier_params.append(nn.Linear(input_dim, classifier_hidden))
-            self.classifier_params.append(rel)
-            input_dim = classifier_hidden
-        self.classifier_params.append(nn.Linear(input_dim, 1))  # Final output layer
-        self.classifier = nn.Sequential(*self.classifier_params)
-
-class MatchModelSlots(nn.Module):
-    def __init__(self,  parameterSet: GridSearchParameterSet):
-        super(MatchModelSlots, self).__init__()
-        self.cnn = parameterSet.cnn
-
-        self.classifier = parameterSet.classifier
 
     def forward(self, img1, img2):
         feat1 = self.cnn(img1)
@@ -328,10 +226,10 @@ test_loader_small = DataLoader(test_dataset_small, batch_size=64, shuffle=True)
 
 
 train_dataset_big = ImagePairDataset("/home/james/Documents/fireHoseSam/mapfiles/output/metadata.csv", "/home/james/Documents/fireHoseSam/mapfiles/output", transform)
-test_dataset_big = ImagePairDataset("/home/james/Documents/fireHoseSam/mapfiles/validation/metadata.csv", "/home/james/Documents/fireHoseSam/mapfiles/validation", transform, 5_000)
+test_dataset_big = ImagePairDataset("/home/james/Documents/fireHoseSam/mapfiles/validation/metadata.csv", "/home/james/Documents/fireHoseSam/mapfiles/validation", transform)
 
-train_loader_big = DataLoader(train_dataset_big, batch_size=64, shuffle=True)
-test_loader_big = DataLoader(test_dataset_big, batch_size=64, shuffle=True)
+train_loader_big = DataLoader(train_dataset_big, batch_size=32, shuffle=True)
+test_loader_big = DataLoader(test_dataset_big, batch_size=32, shuffle=True)
 
 
 if not torch.cuda.is_available():
@@ -507,11 +405,11 @@ def train_with_early_quit(learning_rate, model, dataloader, val_loader, device, 
 def big_refine():
 
     combo = {
-        'nlayers': 6,
-        'downSample': 2,
+        'nlayers': 4,
+        'downSample': None,
         'leaky_cnn': True,
         'leaky_classifier': False,
-        'base_channels': 32, 
+        'base_channels': 16, 
         # 'kernel_size': [3,5],
         'padding': 0,
         'classifier_layers': 4,
