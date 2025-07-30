@@ -406,10 +406,10 @@ def big_refine():
 
     combo = {
         'nlayers': 4,
-        'downSample': None,
+        'downSample': 2,
         'leaky_cnn': True,
         'leaky_classifier': False,
-        'base_channels': 16, 
+        'base_channels': 32, 
         # 'kernel_size': [3,5],
         'padding': 0,
         'classifier_layers': 4,
