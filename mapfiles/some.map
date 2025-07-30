@@ -229,10 +229,10 @@ MAP
 
 
     /**
-     * test
+     * Leeds buildings
     */
     LAYER
-      NAME "buildings"
+      NAME "leeds_buildings"
       TYPE POLYGON
       CONNECTIONTYPE flatgeobuf
       DATA "data/leeds_buildings.fgb"
@@ -249,15 +249,46 @@ MAP
           COLOR 0 0 0 
           # WIDTH 3
           LINECAP ROUND
-        END 
+        END # style
         # STYLE
         #   OUTLINECOLOR 0 0 0 
         #   WIDTH 2 
         #   COLOR 0 255 0 
         #   SIZE 1
         # END
-      END 
-  END
+      END #class
+    END #layer
+
+    /**
+     * Leeds buildings
+    */
+    LAYER
+      NAME "birmingham_buildings"
+      TYPE POLYGON
+      CONNECTIONTYPE flatgeobuf
+      DATA "data/birmingham_buildings.fgb"
+
+
+      PROJECTION 
+        "init=epsg:3857"
+      END
+
+      CLASS 
+        NAME "dataset"
+        STYLE
+          # OUTLINECOLOR 255 0 0
+          COLOR 0 0 0 
+          # WIDTH 3
+          LINECAP ROUND
+        END # style
+        # STYLE
+        #   OUTLINECOLOR 0 0 0 
+        #   WIDTH 2 
+        #   COLOR 0 255 0 
+        #   SIZE 1
+        # END
+      END #class
+    END #layer
 
 
     /**
