@@ -1,21 +1,37 @@
 '''
 Before moving to grid search.
 '''
-import torch.optim.lr_scheduler
-from pynput import keyboard
+import datetime
 import os
+from itertools import product
+
+import torch.optim.lr_scheduler
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
+
+from pynput import keyboard
 import pandas as pd
 from PIL import Image
 from torchvision import transforms
-from itertools import product
+
 
 from GridSearchParameterSet import GridSearchParameterSet
 from MatchModelSlots import MatchModelSlots
 
+def log(msg: str):
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    to_write = f"[{timestamp}] {msg}\n"
+    print(to_write)
+    with open("log.txt", "a") as f:
+        f.write(to_write)
+        f.flush()
+
+
+# Clear log.txt at program start
+with open("log.txt", "w") as f:
+    pass
 
 class ImagePairDataset(Dataset):
     def __init__(self, csv_file, image_dir, transform=None, row_limit=None):
@@ -135,20 +151,20 @@ def train(model, dataloader, val_loader, device, epochs=50, patience=10):
             running_loss += loss.item() * tile_img.size(0)
 
         epoch_loss = running_loss / len(dataloader.dataset)
-        print(f"Epoch {epoch+1}, Training Loss: {epoch_loss:.4f}")
+        log(f"Epoch {epoch+1}, Training Loss: {epoch_loss:.4f}")
 
         val_loss, val_accuracy, val_precision = evaluate(model, val_loader, device)
-        print(f"Validation Loss: {val_loss:.4f} | Accuracy: {val_accuracy:.4f} | Precision: {val_precision:.4f}")
+        log(f"Validation Loss: {val_loss:.4f} | Accuracy: {val_accuracy:.4f} | Precision: {val_precision:.4f}")
 
         if val_precision > best_val_loss:
             best_val_loss = val_precision
             epochs_without_improvement = 0
             torch.save(model.state_dict(), "best_precision_model.pth")
-            print("Saved best model")
+            log("Saved best model")
         else:
             epochs_without_improvement += 1
             if epochs_without_improvement >= patience:
-                print(f"Early stopping triggered at epoch {epoch+1}")
+                log(f"Early stopping triggered at epoch {epoch+1}")
                 break
 
 
@@ -189,10 +205,10 @@ def trainGrid(learning_rate, model, dataloader, val_loader, device, epochs=100, 
             running_loss += loss.item() * tile_img.size(0)
 
         epoch_loss = running_loss / len(dataloader.dataset)
-        print(f"Epoch {epoch+1}, Training Loss: {epoch_loss:.4f}")
+        log(f"Epoch {epoch+1}, Training Loss: {epoch_loss:.4f}")
 
         val_loss, val_accuracy, val_precision = evaluate(model, val_loader, device)
-        print(f"Validation Loss: {val_loss:.4f} | Accuracy: {val_accuracy:.4f} | Precision: {val_precision:.4f}")
+        log(f"Validation Loss: {val_loss:.4f} | Accuracy: {val_accuracy:.4f} | Precision: {val_precision:.4f}")
 
         # Step the scheduler with the validation precision
         scheduler.step(val_precision)
@@ -207,7 +223,7 @@ def trainGrid(learning_rate, model, dataloader, val_loader, device, epochs=100, 
         else:
             epochs_without_improvement += 1
             if epochs_without_improvement >= patience:
-                print(f"Early stopping triggered at epoch {epoch+1}")
+                log(f"Early stopping triggered at epoch {epoch+1}")
                 return best_val_loss
             
     return best_val_loss
@@ -225,13 +241,6 @@ train_loader_small = DataLoader(train_dataset_small, batch_size=64, shuffle=True
 test_loader_small = DataLoader(test_dataset_small, batch_size=64, shuffle=True)
 
 
-train_dataset_big = ImagePairDataset("/home/james/Documents/fireHoseSam/mapfiles/output/metadata.csv", "/home/james/Documents/fireHoseSam/mapfiles/output", transform)
-test_dataset_big = ImagePairDataset("/home/james/Documents/fireHoseSam/mapfiles/validation/metadata.csv", "/home/james/Documents/fireHoseSam/mapfiles/validation", transform)
-
-train_loader_big = DataLoader(train_dataset_big, batch_size=32, shuffle=True)
-test_loader_big = DataLoader(test_dataset_big, batch_size=32, shuffle=True)
-
-
 if not torch.cuda.is_available():
     raise Exception('No GPU available')
 
@@ -242,7 +251,7 @@ def basicTraining():
 
     model = MatchModel().to(device)
 
-    print('Starting training...')
+    log('Starting training...')
     train(model, train_loader_small, test_loader_small, device, 100, 100)
 
 stop_switch = False
@@ -252,7 +261,7 @@ def on_press(key):
     try:
         if key.char == 'q':
             stop_switch = True
-            print('----------------- q key pressed, ending after this iteration has finished ----------------- ')
+            log('----------------- q key pressed, ending after this iteration has finished ----------------- ')
             # Returning False would stop the listener, but we want to finish the iteration
     except AttributeError:
         pass  # Special keys (ctrl, etc.) are ignored
@@ -263,7 +272,7 @@ def gridSearch():
     with open('gridSearch.dicts','r') as existing_dict_file:
         num_lines = sum(1 for _ in existing_dict_file)
 
-    print(f'skipping {num_lines} combinations')
+    log(f'skipping {num_lines} combinations')
     with open('out.txt', 'a') as f, open('gridSearch.dicts','a') as dict_file, keyboard.Listener(on_press=on_press) as listener:
         # (self, nLayers: int, dropout: bool = False, flatten: bool = False, downSample:bool = False, leaky: bool = False, base_channels = 16,kernel_size =3,padding = 0):
         search_space2 = {
@@ -305,7 +314,7 @@ def gridSearch():
         
         for i in range(num_lines ,len(combinations)):
             if stop_switch:
-                print('Goodbye')
+                log('Goodbye')
                 break
             combo = combinations[i]
             parameterSet = GridSearchParameterSet(
@@ -320,31 +329,31 @@ def gridSearch():
                 classifier_hidden=combo['classifier_hidden']
             )
             
-            print(f"Starting CNN params: {parameterSet.feature_maps}, classifier params: {parameterSet.classifier_params}")
-            print(combo)
-            print('\n')
+            log(f"Starting CNN params: {parameterSet.feature_maps}, classifier params: {parameterSet.classifier_params}")
+            log(combo)
+            log('\n')
             model = MatchModelSlots(parameterSet).to(device)
             try:
                 best_precision = trainGrid(combo['learning_rate'],model, train_loader_small, test_loader_small, device, 20, 10)
-                print(f"finished; best precision was: {best_precision}")
+                log(f"finished; best precision was: {best_precision}")
                 f.write(f"{combo},{best_precision}\n")
                 dict_file.write(f"{combo}\n")
                 dict_file.flush()
                 f.flush()
             except Exception as e:
-                print(e)
-                print(f"FAILED")
+                log(e)
+                log(f"FAILED")
                 f.write(f"{combo},FAILED\n")
                 dict_file.write(f"{combo}\n")
                 dict_file.flush()
                 f.flush()
 
-def train_with_early_quit(learning_rate, model, dataloader, val_loader, device, epochs=100, patience=10, patience_delta=0.0001) -> float:
+def train_with_early_quit(learning_rate, model, dataloader, val_loader, device, epochs=100, patience=10, patience_delta=0.0001, max_precision = 1.0) -> float:
     pos_weight = torch.tensor([10.0], device=device)
     criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode='max', factor=0.5, patience=15, verbose=True, min_lr=1e-6
+        optimizer, mode='max', factor=0.5, patience=7, verbose=True, min_lr=1e-6
     )
 
     best_val_loss = -1.0
@@ -369,20 +378,20 @@ def train_with_early_quit(learning_rate, model, dataloader, val_loader, device, 
                 running_loss += loss.item() * tile_img.size(0)
 
             epoch_loss = running_loss / len(dataloader.dataset)
-            print(f"Epoch {epoch+1}, Training Loss: {epoch_loss:.4f}")
+            log(f"Epoch {epoch+1}, Training Loss: {epoch_loss:.4f}")
 
             val_loss, val_accuracy, val_precision = evaluate(model, val_loader, device)
-            print(f"Validation Loss: {val_loss:.4f} | Accuracy: {val_accuracy:.4f} | Precision: {val_precision:.4f}")
+            log(f"Validation Loss: {val_loss:.4f} | Accuracy: {val_accuracy:.4f} | Precision: {val_precision:.4f}")
 
             scheduler.step(val_precision)
 
-            should_save = epoch > 10
+            should_save = epoch > 0
 
             if val_precision > best_val_loss:
                 if (val_precision - best_val_loss) > patience_delta:
                     epochs_without_improvement = 0
                     if (should_save):
-                        print('saving best model')
+                        log('saving best model')
                         torch.save(model.state_dict(), "best_precision_model.pth")
                 else:
                     epochs_without_improvement += 1
@@ -390,26 +399,29 @@ def train_with_early_quit(learning_rate, model, dataloader, val_loader, device, 
             else:
                 epochs_without_improvement += 1
                 if epochs_without_improvement >= patience:
-                    print(f"Early stopping triggered at epoch {epoch+1}")
+                    log(f"Early stopping triggered at epoch {epoch+1}")
                     break
 
             if stop_switch:
                 # Save model and quit after finishing this epoch
                 save_path = f"early_finish_epoch_{epoch+1}.pth"
                 torch.save(model.state_dict(), save_path)
-                print(f"Early quit requested. Model saved to {save_path}")
+                log(f"Early quit requested. Model saved to {save_path}")
                 break
+
+            # if best_val_loss > max_precision:
+            #     log('exiting, max precision reached')
+            #     break
 
     return best_val_loss
    
 def big_refine():
-
     combo = {
         'nlayers': 4,
-        'downSample': 2,
+        'downSample': None,
         'leaky_cnn': True,
         'leaky_classifier': False,
-        'base_channels': 32, 
+        'base_channels': 16, 
         # 'kernel_size': [3,5],
         'padding': 0,
         'classifier_layers': 4,
@@ -430,13 +442,19 @@ def big_refine():
     )
 
     model = MatchModelSlots(parameterSet).to(device)
-    checkpoint_path = "early_finish_epoch_26.pth"
+    checkpoint_path = "/home/james/Documents/fireHoseSam/early_finish_epoch_7.pth"
     if os.path.exists(checkpoint_path):
-        print(f"Loading checkpoint from {checkpoint_path}")
+        log(f"Loading checkpoint from {checkpoint_path}")
         model.load_state_dict(torch.load(checkpoint_path))
+        combo['learning_rate'] = 1e-4
 
+    train_dataset_big = ImagePairDataset("/home/james/Documents/fireHoseSam/mapfiles/output/metadata.csv", "/home/james/Documents/fireHoseSam/mapfiles/output", transform, 5_000)
+    test_dataset_big = ImagePairDataset("/home/james/Documents/fireHoseSam/mapfiles/validation/metadata.csv", "/home/james/Documents/fireHoseSam/mapfiles/validation", transform, 5_000)
+
+    train_loader_big = DataLoader(train_dataset_big, batch_size=16, shuffle=True)
+    test_loader_big = DataLoader(test_dataset_big, batch_size=16, shuffle=True)
    
-    print('Starting training...')
+    log('Starting training...')
     train_with_early_quit(combo['learning_rate'], model, train_loader_big, test_loader_big, device, 300, 15)
 
 
