@@ -16,6 +16,7 @@ import pandas as pd
 from PIL import Image
 from torchvision import transforms
 
+from playsound import playsound
 
 from GridSearchParameterSet import GridSearchParameterSet
 from MatchModelSlots import MatchModelSlots
@@ -181,7 +182,7 @@ def trainGrid(learning_rate, model, dataloader, val_loader, device, epochs=100, 
 
     # Add a scheduler that reduces LR when validation precision plateaus
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode='max', factor=0.5, patience=3, verbose=True, min_lr=1e-6
+        optimizer, mode='max', factor=0.5, patience=5, verbose=True, min_lr=1e-6
     )
 
     best_val_loss = -1.0
@@ -273,35 +274,20 @@ def gridSearch():
         num_lines = sum(1 for _ in existing_dict_file)
 
     log(f'skipping {num_lines} combinations')
-    with open('out.txt', 'a') as f, open('gridSearch.dicts','a') as dict_file, keyboard.Listener(on_press=on_press) as listener:
+    with open('out.txt', 'a') as ff, open('gridSearch.dicts','a') as dict_file, keyboard.Listener(on_press=on_press) as listener:
         # (self, nLayers: int, dropout: bool = False, flatten: bool = False, downSample:bool = False, leaky: bool = False, base_channels = 16,kernel_size =3,padding = 0):
-        search_space2 = {
-            'nlayers': [3, 4],
-            'downSample': [2], #[None, 2]
-            'leaky_cnn': [True, False],
-            'leaky_classifier': [True, False],
-            'base_channels': [16, 32],
-            # 'kernel_size': [3,5],
-            'padding': [0],
-            'classifier_layers': [2, 3],
-            'classifier_hidden': [64, 128],
-            # NEW
-            # 'dropout': [0.0, 0.2],
-            # 'learning_rate': [1e-4, 1e-3],
-        }
-
-
         search_space = {
-            'nlayers': [5], # change this to 6 later
-            'downSample': [2],
+            'nlayers': [4,5], 
+            'downSample': [None],
             'leaky_cnn': [True],
             'leaky_classifier': [False],
-            'base_channels': [32], 
+            'base_channels': [16, 32], 
             # 'kernel_size': [3,5],
             'padding': [0],
             'classifier_layers': [4],
-            'classifier_hidden': [128],
-            'learning_rate': [1e-2,1e-3,1e-4,1e-5]
+            'classifier_hidden': [32,128],
+            'batch_size':[16,32,64],
+            'learning_rate': [1e-3] # todo: rename to "starting_learning_rate"
         }
 
         # Get keys and values
@@ -310,6 +296,7 @@ def gridSearch():
 
         # Create list of all combinations
         combinations = [dict(zip(keys, v)) for v in product(*values)]
+        log(f'Grid searching over {len(combinations)} combinations')
         # def __init__(self, nLayers: int, dropout: bool = False, flatten: bool = False, downSample:bool = False, leaky: bool = False, base_channels = 16,kernel_size =3,padding = 0):
         
         for i in range(num_lines ,len(combinations)):
@@ -331,26 +318,27 @@ def gridSearch():
             
             log(f"Starting CNN params: {parameterSet.feature_maps}, classifier params: {parameterSet.classifier_params}")
             log(combo)
-            log('\n')
             model = MatchModelSlots(parameterSet).to(device)
             try:
-                best_precision = trainGrid(combo['learning_rate'],model, train_loader_small, test_loader_small, device, 20, 10)
+                train_loader_small_a = DataLoader(train_dataset_small, batch_size=combo['batch_size'], shuffle=True)
+                test_loader_small_a = DataLoader(test_dataset_small, batch_size=combo['batch_size'], shuffle=True)
+                best_precision = trainGrid(combo['learning_rate'],model, train_loader_small_a, test_loader_small_a, device, 20, 10)
                 log(f"finished; best precision was: {best_precision}")
-                f.write(f"{combo},{best_precision}\n")
+                ff.write(f"{combo},{best_precision}\n")
                 dict_file.write(f"{combo}\n")
                 dict_file.flush()
-                f.flush()
+                ff.flush()
             except Exception as e:
                 log(e)
                 log(f"FAILED")
-                f.write(f"{combo},FAILED\n")
+                ff.write(f"{combo},FAILED\n")
                 dict_file.write(f"{combo}\n")
                 dict_file.flush()
-                f.flush()
+                ff.flush()
 
 def train_with_early_quit(learning_rate, model, dataloader, val_loader, device, epochs=100, patience=10, patience_delta=0.0001, max_precision = 1.0) -> float:
-    pos_weight = torch.tensor([10.0], device=device)
-    criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+    # pos_weight = torch.tensor([10.0], device=device)
+    criterion = nn.BCEWithLogitsLoss() #pos_weight=pos_weight
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, mode='max', factor=0.5, patience=7, verbose=True, min_lr=1e-6
@@ -387,15 +375,15 @@ def train_with_early_quit(learning_rate, model, dataloader, val_loader, device, 
 
             should_save = epoch > 0
 
-            if val_precision > best_val_loss:
-                if (val_precision - best_val_loss) > patience_delta:
+            if val_accuracy > best_val_loss:
+                if (val_accuracy - best_val_loss) > patience_delta:
                     epochs_without_improvement = 0
                     if (should_save):
                         log('saving best model')
                         torch.save(model.state_dict(), "best_precision_model.pth")
                 else:
                     epochs_without_improvement += 1
-                best_val_loss = val_precision
+                best_val_loss = val_accuracy
             else:
                 epochs_without_improvement += 1
                 if epochs_without_improvement >= patience:
@@ -416,18 +404,49 @@ def train_with_early_quit(learning_rate, model, dataloader, val_loader, device, 
     return best_val_loss
    
 def big_refine():
+
+# [2025-07-31 10:24:26] {'nlayers': 4, 'downSample': None, 'leaky_cnn': True, 'leaky_classifier': False, 'base_channels': 16, 'padding': 0, 'classifier_layers': 4, 'classifier_hidden': 128, 'batch_size': 32, 'learning_rate': 0.001}
+
+    # combo = {
+    # This combo works with batch size 45, but doesn't give good accuracy.
+    #     'nlayers': 4,
+    #     'downSample': None,
+    #     'leaky_cnn': False,
+    #     'leaky_classifier': False,
+    #     'base_channels': 16, 
+    #     # 'kernel_size': [3,5],
+    #     'padding': 0,
+    #     'classifier_layers': 4,
+    #     'classifier_hidden': 32,
+    #     'learning_rate': 1e-3
+    # }
+
+
     combo = {
         'nlayers': 4,
         'downSample': None,
         'leaky_cnn': True,
-        'leaky_classifier': False,
-        'base_channels': 16, 
+        'leaky_classifier': True,
+        'base_channels': 32, 
         # 'kernel_size': [3,5],
         'padding': 0,
         'classifier_layers': 4,
-        'classifier_hidden': 128,
+        'classifier_hidden': 32,
         'learning_rate': 1e-3
     }
+
+    # combo = {
+    #     'nlayers': 3,
+    #     'downSample': None,
+    #     'leaky_cnn': True,
+    #     'leaky_classifier': False,
+    #     'base_channels': 16, 
+    #     # 'kernel_size': [3,5],
+    #     'padding': 0,
+    #     'classifier_layers': 4,
+    #     'classifier_hidden': 128,
+    #     'learning_rate': 1e-3
+    # }
 
     parameterSet = GridSearchParameterSet(
         nLayers = combo['nlayers'], 
@@ -442,17 +461,17 @@ def big_refine():
     )
 
     model = MatchModelSlots(parameterSet).to(device)
-    checkpoint_path = "/home/james/Documents/fireHoseSam/early_finish_epoch_7.pth"
-    if os.path.exists(checkpoint_path):
-        log(f"Loading checkpoint from {checkpoint_path}")
-        model.load_state_dict(torch.load(checkpoint_path))
-        combo['learning_rate'] = 1e-4
+    # checkpoint_path = "/home/james/Documents/fireHoseSam/best_precision_model.pth"
+    # if os.path.exists(checkpoint_path):
+    #     log(f"Loading checkpoint from {checkpoint_path}")
+    #     model.load_state_dict(torch.load(checkpoint_path))
+    #     combo['learning_rate'] = 1e-4
 
-    train_dataset_big = ImagePairDataset("/home/james/Documents/fireHoseSam/mapfiles/output/metadata.csv", "/home/james/Documents/fireHoseSam/mapfiles/output", transform, 5_000)
-    test_dataset_big = ImagePairDataset("/home/james/Documents/fireHoseSam/mapfiles/validation/metadata.csv", "/home/james/Documents/fireHoseSam/mapfiles/validation", transform, 5_000)
+    train_dataset_big = ImagePairDataset("/home/james/Documents/fireHoseSam/mapfiles/output/metadata.csv", "/home/james/Documents/fireHoseSam/mapfiles/output", transform)
+    test_dataset_big = ImagePairDataset("/home/james/Documents/fireHoseSam/mapfiles/validation/metadata.csv", "/home/james/Documents/fireHoseSam/mapfiles/validation", transform)
 
-    train_loader_big = DataLoader(train_dataset_big, batch_size=16, shuffle=True)
-    test_loader_big = DataLoader(test_dataset_big, batch_size=16, shuffle=True)
+    train_loader_big = DataLoader(train_dataset_big, batch_size=32, shuffle=True)
+    test_loader_big = DataLoader(test_dataset_big, batch_size=32, shuffle=True)
    
     log('Starting training...')
     train_with_early_quit(combo['learning_rate'], model, train_loader_big, test_loader_big, device, 300, 15)
@@ -463,3 +482,4 @@ if __name__ == "__main__":
     # basicTraining()
     # gridSearch()
     big_refine()
+    # playsound('/home/james/Downloads/nokia_brick.mp3')

@@ -13,3 +13,16 @@ out.txt
 .gitignore
 out.csv
 out_initial.txt
+/mapfiles/output_30_percent_difficult/
+/ui/node_modules/
+image_pair_results.csv
+.gitignore
+log.txt
+joined_results.csv
+/.idea/
+ui/data/grid_counts.geojson
+sub_grid_match.json
+output.geojson
+.gitignore
+grid_search_log.txt
+bbox_extent.geojson

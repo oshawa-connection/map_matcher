@@ -72,15 +72,15 @@ class GridSearchParameterSet:
             if layer_index == nLayers -1:
                 self.feature_maps.append(nn.AdaptiveAvgPool2d((output_height, output_width)))
 
-            elif downSample is not None:
+            elif downSample is not None and layer_index % 2 == 1:
                 self.feature_maps.append(nn.MaxPool2d(downSample))
 
         self.cnn = nn.Sequential(*self.feature_maps)
 
         if leaky_classifier:
-            rel = nn.ReLU()
-        else:
             rel = nn.LeakyReLU()
+        else:
+            rel = nn.ReLU()
 
 
         self.classifier_params = []

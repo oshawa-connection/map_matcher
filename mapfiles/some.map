@@ -232,10 +232,10 @@ MAP
      * Leeds buildings
     */
     LAYER
-      NAME "leeds_buildings"
+      NAME "leeds"
       TYPE POLYGON
       CONNECTIONTYPE flatgeobuf
-      DATA "data/leeds_buildings.fgb"
+      DATA "data/leeds.fgb"
 
 
       PROJECTION 
@@ -263,10 +263,68 @@ MAP
      * Leeds buildings
     */
     LAYER
-      NAME "birmingham_buildings"
+      NAME "birmingham"
       TYPE POLYGON
       CONNECTIONTYPE flatgeobuf
-      DATA "data/birmingham_buildings.fgb"
+      DATA "data/birmingham.fgb"
+
+
+      PROJECTION 
+        "init=epsg:3857"
+      END
+
+      CLASS 
+        NAME "dataset"
+        STYLE
+          # OUTLINECOLOR 255 0 0
+          COLOR 0 0 0 
+          # WIDTH 3
+          LINECAP ROUND
+        END # style
+        # STYLE
+        #   OUTLINECOLOR 0 0 0 
+        #   WIDTH 2 
+        #   COLOR 0 255 0 
+        #   SIZE 1
+        # END
+      END #class
+    END #layer
+
+
+    LAYER
+      NAME "sheffield"
+      TYPE POLYGON
+      CONNECTIONTYPE flatgeobuf
+      DATA "data/sheffield.fgb"
+
+
+      PROJECTION 
+        "init=epsg:3857"
+      END
+
+      CLASS 
+        NAME "dataset"
+        STYLE
+          # OUTLINECOLOR 255 0 0
+          COLOR 0 0 0 
+          # WIDTH 3
+          LINECAP ROUND
+        END # style
+        # STYLE
+        #   OUTLINECOLOR 0 0 0 
+        #   WIDTH 2 
+        #   COLOR 0 255 0 
+        #   SIZE 1
+        # END
+      END #class
+    END #layer
+
+    
+    LAYER
+      NAME "manchester"
+      TYPE POLYGON
+      CONNECTIONTYPE flatgeobuf
+      DATA "data/manchester.fgb"
 
 
       PROJECTION 
@@ -327,24 +385,24 @@ MAP
 
 
 
-      LAYER
-        NAME "HELLO3"
-        PROJECTION 
-          "EPSG:4326"
+  LAYER
+    NAME "HELLO3"
+    PROJECTION 
+      "EPSG:4326"
+    END
+    TYPE POINT
+    CONNECTIONTYPE OGR
+    
+    CONNECTION "/home/james/Documents/mapserverdev/ggg.geojson"
+    DATA "ggg"
+    CLASS
+        STYLE
+          SYMBOL 'circle'
+          COLOR 255 0 0
+          SIZE 10
+          WIDTH 3
         END
-        TYPE POINT
-        CONNECTIONTYPE OGR
-        
-        CONNECTION "/home/james/Documents/mapserverdev/ggg.geojson"
-        DATA "ggg"
-        CLASS
-            STYLE
-              SYMBOL 'circle'
-              COLOR 255 0 0
-              SIZE 10
-              WIDTH 3
-            END
-          END
       END
+  END
 
 END
