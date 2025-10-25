@@ -1,3 +1,14 @@
+'''
+You have:
+1. A pretrained model
+2. A basemap split up into tiles
+3. A map representing a sub-area of the basemap, which is also split up into tiles.
+
+This script takes all these, and searches for the area of the basemap covered by your map.
+
+'''
+
+
 import json
 import os
 import torch

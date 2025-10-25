@@ -1,5 +1,15 @@
 '''
-Before moving to grid search.
+This script is used for a couple of things:
+1. Iteratively searching for the best parameters for the model (that will also fit on your GPU)
+2. Once a good parameter set is found, training a model until it stops improving or an epoch limit is reached.
+
+The model is saved to "best_precision_model.pth" for evaluation. This might not necessarily be the one at the latest epoch.
+
+You can press the 'q' key on the keyboard to halt the model training/ parameter searching after the current epoch finishes
+(e.g. if you need to use the computer for something else). The best model up til that
+point is then saved for reloading.
+
+Lastly, during training, the learning rate gradually decreases if the precision doesn't improve after a tolerance.
 '''
 import datetime
 import os
@@ -169,10 +179,6 @@ def train(model, dataloader, val_loader, device, epochs=50, patience=10):
                 break
 
 
-
-
-# ...existing code...
-
 def trainGrid(learning_rate, model, dataloader, val_loader, device, epochs=100, patience=10, patience_delta = 0.0001) -> float:
     model = model.to(device)
 
@@ -263,9 +269,8 @@ def on_press(key):
         if key.char == 'q':
             stop_switch = True
             log('----------------- q key pressed, ending after this iteration has finished ----------------- ')
-            # Returning False would stop the listener, but we want to finish the iteration
     except AttributeError:
-        pass  # Special keys (ctrl, etc.) are ignored
+        pass  # Special keys are ignored
 
 
 def gridSearch():
@@ -404,24 +409,6 @@ def train_with_early_quit(learning_rate, model, dataloader, val_loader, device, 
     return best_val_loss
    
 def big_refine():
-
-# [2025-07-31 10:24:26] {'nlayers': 4, 'downSample': None, 'leaky_cnn': True, 'leaky_classifier': False, 'base_channels': 16, 'padding': 0, 'classifier_layers': 4, 'classifier_hidden': 128, 'batch_size': 32, 'learning_rate': 0.001}
-
-    # combo = {
-    # This combo works with batch size 45, but doesn't give good accuracy.
-    #     'nlayers': 4,
-    #     'downSample': None,
-    #     'leaky_cnn': False,
-    #     'leaky_classifier': False,
-    #     'base_channels': 16, 
-    #     # 'kernel_size': [3,5],
-    #     'padding': 0,
-    #     'classifier_layers': 4,
-    #     'classifier_hidden': 32,
-    #     'learning_rate': 1e-3
-    # }
-
-
     combo = {
         'nlayers': 4,
         'downSample': None,
@@ -434,19 +421,6 @@ def big_refine():
         'classifier_hidden': 32,
         'learning_rate': 1e-3
     }
-
-    # combo = {
-    #     'nlayers': 3,
-    #     'downSample': None,
-    #     'leaky_cnn': True,
-    #     'leaky_classifier': False,
-    #     'base_channels': 16, 
-    #     # 'kernel_size': [3,5],
-    #     'padding': 0,
-    #     'classifier_layers': 4,
-    #     'classifier_hidden': 128,
-    #     'learning_rate': 1e-3
-    # }
 
     parameterSet = GridSearchParameterSet(
         nLayers = combo['nlayers'], 
@@ -461,11 +435,11 @@ def big_refine():
     )
 
     model = MatchModelSlots(parameterSet).to(device)
-    # checkpoint_path = "/home/james/Documents/fireHoseSam/best_precision_model.pth"
-    # if os.path.exists(checkpoint_path):
-    #     log(f"Loading checkpoint from {checkpoint_path}")
-    #     model.load_state_dict(torch.load(checkpoint_path))
-    #     combo['learning_rate'] = 1e-4
+    checkpoint_path = "/home/james/Documents/fireHoseSam/best_precision_model.pth"
+    if os.path.exists(checkpoint_path):
+        log(f"Loading checkpoint from {checkpoint_path}")
+        model.load_state_dict(torch.load(checkpoint_path))
+        combo['learning_rate'] = 1e-4
 
     train_dataset_big = ImagePairDataset("/home/james/Documents/fireHoseSam/mapfiles/output/metadata.csv", "/home/james/Documents/fireHoseSam/mapfiles/output", transform)
     test_dataset_big = ImagePairDataset("/home/james/Documents/fireHoseSam/mapfiles/validation/metadata.csv", "/home/james/Documents/fireHoseSam/mapfiles/validation", transform)
