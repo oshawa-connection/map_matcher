@@ -25,6 +25,7 @@ from pynput import keyboard
 import pandas as pd
 from PIL import Image
 from torchvision import transforms
+from pathlib import Path
 
 from playsound import playsound
 
@@ -241,8 +242,8 @@ transform = transforms.Compose([
 ])
 
 
-train_dataset_small = ImagePairDataset("/home/james/Documents/fireHoseSam/mapfiles/output/metadata.csv", "/home/james/Documents/fireHoseSam/mapfiles/output", transform, 5_000)
-test_dataset_small = ImagePairDataset("/home/james/Documents/fireHoseSam/mapfiles/validation/metadata.csv", "/home/james/Documents/fireHoseSam/mapfiles/validation", transform, 2_500)
+train_dataset_small = ImagePairDataset(str(Path.joinpath(Path.cwd(), "mapfiles/output/metadata.csv")), str(Path.joinpath(Path.cwd(), "mapfiles/output")), transform, 5_000)
+test_dataset_small = ImagePairDataset(str(Path.joinpath(Path.cwd(), "mapfiles/validation/metadata.csv")), str(Path.joinpath(Path.cwd(), "mapfiles/validation")), transform, 2_500)
 
 train_loader_small = DataLoader(train_dataset_small, batch_size=64, shuffle=True)
 test_loader_small = DataLoader(test_dataset_small, batch_size=64, shuffle=True)
@@ -435,14 +436,14 @@ def big_refine():
     )
 
     model = MatchModelSlots(parameterSet).to(device)
-    checkpoint_path = "/home/james/Documents/fireHoseSam/best_precision_model.pth"
+    checkpoint_path = str(Path.joinpath(Path.cwd(), "best_precision_model.pth"))
     if os.path.exists(checkpoint_path):
         log(f"Loading checkpoint from {checkpoint_path}")
         model.load_state_dict(torch.load(checkpoint_path))
         combo['learning_rate'] = 1e-4
 
-    train_dataset_big = ImagePairDataset("/home/james/Documents/fireHoseSam/mapfiles/output/metadata.csv", "/home/james/Documents/fireHoseSam/mapfiles/output", transform)
-    test_dataset_big = ImagePairDataset("/home/james/Documents/fireHoseSam/mapfiles/validation/metadata.csv", "/home/james/Documents/fireHoseSam/mapfiles/validation", transform)
+    train_dataset_big = ImagePairDataset(str(Path.joinpath(Path.cwd(), "mapfiles/output/metadata.csv")), str(Path.joinpath(Path.cwd(), "mapfiles/output")), transform)
+    test_dataset_big = ImagePairDataset(str(Path.joinpath(Path.cwd(), "mapfiles/validation/metadata.csv")), str(Path.joinpath(Path.cwd(), "mapfiles/validation")), transform)
 
     train_loader_big = DataLoader(train_dataset_big, batch_size=32, shuffle=True)
     test_loader_big = DataLoader(test_dataset_big, batch_size=32, shuffle=True)
@@ -456,4 +457,4 @@ if __name__ == "__main__":
     # basicTraining()
     # gridSearch()
     big_refine()
-    # playsound('/home/james/Downloads/nokia_brick.mp3')
+    # playsound(str(Path.joinpath(Path.home(), "Downloads/nokia_brick.mp3")))
