@@ -38,23 +38,14 @@ Now run `multiGridSearch.py` which:
 you should hopefully be able to spot the area that the PDF map represents of the search area.
 
 
+## Features of classifyPrecision
 
-## How to create synthetic dataset
+This has got two modes. The first is searching for the best set of parameters (after a low number of epochs) that result in the best precision while still fitting on your GPU. Once this is found, the other mode is training a model until it stops improving vs a validation dataset after a set epoch patience, and after lowering the learning rate. 
 
-1. Clone Mapserver into root directory.
-2. Download OSM buildings dataset from geofabrik, process into a FGB and place under mapfiles/data
+Both of these steps are designed to run on a personal desktop computer, so there is functionality for stopping and picking up where it left off for both of these.
 
-```sh
-docker run -v ./mapfiles:/mapfiles --rm -it --entrypoint /bin/bash firehosesam
-python3 /mapfiles/firehose.py
-```
 
-## How to train model
-
-```sh
-python3 classifyPrecision.py
-```
-
+## Parameters
 
 The results of the parameter grid search favour this parameter combo:
 
@@ -87,7 +78,9 @@ combo = {
 }
 ```
 
-## Training + grid generation
+## Future work
+
+### Training + grid generation
 
 - Training + testing images
 - When generating the training/ test dataset, we make sure that the sharedPixelArea matches the model kernel size.
@@ -95,18 +88,8 @@ combo = {
 - Calculate a "paint coverage" factor rather than using the number of features.
 - Test the current best model against its own validation dataset to see which ones it got wrong. Might show what the problem is!
 
-## Grid matching
+### Grid matching
 
 - When doing matching, after a few tiles have been matched up, when deciding where the next tile should start searching, it would be more efficient to check the tiles including and around where the initial clusters are.
 - If two tiles are blank, skip matching them? Or just skip classifying, and match.
 - Offset the main grid and search again using that - this will help at tile boundaries.
-
-## Extracting data
-
-We want to transform the vector data into a format that mapserver can read fast during rendering. You can use any method you like, but flatgeobuf was
-found to have very good ready performance!
-
-```bash
-osmium tags-filter south-yorkshire-latest.osm.pbf a/building -o jjj.osm
-ogr2ogr buildings.fgb jjj.osm
-```
